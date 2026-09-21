@@ -9,10 +9,13 @@ authors = [
     { name = "Sultan Parvez" }
 ]
 requires-python = ">=3.14"
-dependencies = []
-
-[project.scripts]
-ku-nlp-group-25-project = "ku_nlp_group_25_project:main"
+dependencies = [
+    "datasets>=5.0.1",
+    "ipykernel>=7.3.0",
+    "jupyterlab>=4.6.3",
+    "numpy>=2.5.3",
+    "pandas>=3.0.6",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]
