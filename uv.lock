@@ -1161,19 +1161,27 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "datasets" },
-    { name = "ipykernel" },
-    { name = "jupyterlab" },
     { name = "numpy" },
     { name = "pandas" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ipykernel" },
+    { name = "jupyterlab" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "datasets", specifier = ">=5.0.1" },
-    { name = "ipykernel", specifier = ">=7.3.0" },
-    { name = "jupyterlab", specifier = ">=4.6.3" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "pandas", specifier = ">=3.0.6" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "ipykernel", specifier = ">=7.3.0" },
+    { name = "jupyterlab", specifier = ">=4.6.3" },
 ]
 
 [[package]]
