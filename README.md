@@ -75,9 +75,10 @@ $ uv sync
 
 ### 3.2. Useful links
 
-| Link                                                                  | Description                               |
-|-----------------------------------------------------------------------|-------------------------------------------|
-| [Overleaf](https://www.overleaf.com/project/6ab107696f1f5e9e7040155b) | The Overleaf project that to collaborate. |
+| Link                                                                                                                     | Description                                                             |
+|--------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| [Overleaf](https://www.overleaf.com/project/6ab107696f1f5e9e7040155b)                                                    | The Overleaf project that to collaborate.                               |
+| [Google Colab: Data and Rule-Based Baselines](https://colab.research.google.com/drive/1fXWwqbiRqKgFDwj0xpfJp2gh9DDTu_Su) | The Google Colab notebook to check the dataset and determine baselines. |
 
 <sup>[Back to top ^][table-of-contents]</sup>
 
