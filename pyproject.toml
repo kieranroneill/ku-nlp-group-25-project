@@ -1,0 +1,19 @@
+[project]
+name = "ku-nlp-group-25-project"
+version = "1.0.0"
+description = "NLP Group 25 Project"
+readme = "README.md"
+authors = [
+    { name = "Haoyang Sun" },
+    { name = "Kieran O'Neill", email = "zcd890@alumni.ku.dk" },
+    { name = "Sultan Parvez" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+ku-nlp-group-25-project = "ku_nlp_group_25_project:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
