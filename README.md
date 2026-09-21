@@ -24,9 +24,6 @@
 ├─ docs/                            <-- LaTex files for report
 │   ├── main.tex
 │   └── ...
-├─ notebooks/                       <-- Jupyter notebooks for data analysis
-│   ├── awesome_data_analysis.ipynb
-│   └── ...
 ├─ src/                             <-- Internal Python code and packages
 │   ├── <package-name>/
 │   │   ├── __init__.py
@@ -48,7 +45,7 @@
 
 #### 2.1. Requirements
 
-- [Python v3.14+](https://www.python.org/downloads/)
+- [Python v3.12+](https://www.python.org/downloads/)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 <sup>[Back to top ^][table-of-contents]</sup>
