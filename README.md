@@ -75,9 +75,10 @@ $ uv sync
 
 ### 3.1. Useful commands
 
-| Command   | Description                |
-|-----------|----------------------------|
-| `uv sync` | Installs the dependencies. |
+| Command         | Description                                         |
+|-----------------|-----------------------------------------------------|
+| `uv run pytest` | Run unit tests. See `pytest.ini` for configuration. |
+| `uv sync`       | Installs the dependencies.                          |
 
 <sup>[Back to top ^][table-of-contents]</sup>
 
