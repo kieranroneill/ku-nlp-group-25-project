@@ -10,6 +10,20 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/results/week_36_baseline_2_metrics.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/results/week_36_baseline_2_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="|" />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>

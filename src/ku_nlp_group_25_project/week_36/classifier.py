@@ -293,11 +293,6 @@ class Classifier:
             context_tokens=sorted(list(context_tokens)),
             question_token_count=question_token_count,
             question_tokens=sorted(list(question_tokens)),
-            question_overlap_ratio=(
-                shared_token_count / question_token_count
-                if question_token_count > 0
-                else 0.0
-            ),
             shared_token_count=shared_token_count,
             shared_tokens=sorted(list(shared_tokens)),
         )
@@ -315,7 +310,6 @@ class Classifier:
         - `shared_token_count`: Number of distinct tokens present in both question and context.
         - `question_token_count`: Number of distinct normalized question tokens.
         - `context_token_count`: Number of distinct normalized context tokens.
-        - `question_overlap_ratio`: `shared_token_count` divided by `question_token_count`, or 0.0 for an empty question.
         - `shared_tokens`: Shared tokens separated by a pipe `" | "` for inspection in a DataFrame or CSV.
 
         Args:
@@ -366,10 +360,6 @@ class Classifier:
         ]
         results["context_token_count"] = [
             prediction.context_token_count
-            for prediction in predictions
-        ]
-        results["question_overlap_ratio"] = [
-            prediction.question_overlap_ratio
             for prediction in predictions
         ]
         results["shared_tokens"] = [
