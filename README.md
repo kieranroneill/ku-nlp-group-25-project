@@ -24,16 +24,27 @@
 ├─ docs/                            <-- LaTex files for report
 │   ├── main.tex
 │   └── ...
+├─ notebooks/                       <-- Notebooks to run analysis
+│   ├── notebook.ipynb
+│   └── ...
+├─ results/                         <-- Results of analysis
+│   └── ...
 ├─ src/                             <-- Internal Python code and packages
 │   ├── <package-name>/
 │   │   ├── __init__.py
 │   │   └── ...
 │   ├── __init__.py
 │   └── ...
+├─ tests/                           <-- Unit tests
+│   ├── <package-name>/
+│   │   ├── test_*.py
+│   │   └── ...
+│   └── ...
 ├── .editorconfig
 ├── .gitignore
 ├── .python-version
 ├── pyproject.toml
+├── pytest.ini
 ├── README.md
 ├── uv.lock
 └── ...
