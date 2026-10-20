@@ -5,9 +5,15 @@ from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 from ku_nlp_group_25_project.utilities.load_dataset import load_dataset
 
+import random
+
+SEED = 42
+random.seed(SEED)
+torch.manual_seed(SEED)
+
 # Configuration
 MODEL_NAME = "FacebookAI/xlm-roberta-base"
-OUTPUT_DIR = "models/w37_xlmr_bio"
+OUTPUT_DIR = "models/w37_xlmr_bio_multilingual"
 MAX_LENGTH = 384
 BATCH_SIZE = 4
 EPOCHS = 2
@@ -20,10 +26,22 @@ device = torch.device(
 )
 print("Using device:", device)
 
-# Load the same Korean dataset
+# Load the dataset
 train, validation = load_dataset()
-train = train[train["lang"] == "ko"].copy()
-validation = validation[validation["lang"] == "ko"].copy()
+
+LANGUAGES = {"ar", "ko", "te"}
+
+train = train[train["lang"].isin(LANGUAGES)].copy()
+validation = validation[validation["lang"].isin(LANGUAGES)].copy()
+
+assert set(train["lang"]) == LANGUAGES
+assert set(validation["lang"]) == LANGUAGES
+
+print("\nTraining examples by language:")
+print(train["lang"].value_counts())
+
+print("\nValidation examples by language:")
+print(validation["lang"].value_counts())
 
 print("Training examples:", len(train))
 print("Validation examples:", len(validation))
