@@ -1,13 +1,14 @@
 
 import re
 import string
-import torch
 from collections import Counter
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+
+import torch
+from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 from ku_nlp_group_25_project.utilities.load_dataset import load_dataset
 
-MODEL_DIR = "models/w37_xlmr_qa"
+MODEL_DIR = "models/w37_xlmr_bio"
 MAX_LENGTH = 384
 
 device = torch.device(
@@ -15,13 +16,16 @@ device = torch.device(
 )
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-model = AutoModelForQuestionAnswering.from_pretrained(
+model = AutoModelForTokenClassification.from_pretrained(
     MODEL_DIR
 ).to(device)
 model.eval()
 
 _, validation = load_dataset()
 validation = validation[validation["lang"] == "ko"].copy()
+
+print("Using device:", device)
+print("Validation examples:", len(validation))
 
 
 def normalize_answer(text):
@@ -57,14 +61,14 @@ def predict_answer(question, context):
         question,
         context,
         truncation="only_second",
-        max_length=MAX_LENGTH,
         padding="max_length",
+        max_length=MAX_LENGTH,
         return_offsets_mapping=True,
         return_tensors="pt",
     )
 
-    offsets = encoded.pop("offset_mapping")[0].tolist()
     sequence_ids = encoded.sequence_ids(0)
+    offsets = encoded.pop("offset_mapping")[0].tolist()
 
     inputs = {
         key: value.to(device)
@@ -74,51 +78,54 @@ def predict_answer(question, context):
     with torch.inference_mode():
         outputs = model(**inputs)
 
-    start_logits = outputs.start_logits[0].cpu()
-    end_logits = outputs.end_logits[0].cpu()
-
-    cls_index = encoded["input_ids"][0].tolist().index(
-        tokenizer.cls_token_id
-    )
-
-    # Compare candidate answers with the no-answer score.
-    null_score = (
-        start_logits[cls_index] + end_logits[cls_index]
-    ).item()
+    logits = outputs.logits[0].cpu()
+    predicted_labels = logits.argmax(dim=-1).tolist()
+    probabilities = torch.softmax(logits, dim=-1)
 
     context_indices = [
         i for i, sid in enumerate(sequence_ids)
         if sid == 1 and offsets[i][1] > offsets[i][0]
     ]
 
-    best_score = float("-inf")
+    # Find B-ANS tokens and extend through following I-ANS.
+    # If there are multiple spans, select the one with
+    # the highest B-ANS probability.
     best_answer = ""
+    best_score = -1.0
 
-    for start in context_indices:
-        for end in context_indices:
-            if end < start:
-                continue
-            if end - start + 1 > 30:
-                continue
+    for position, start_token in enumerate(context_indices):
+        if predicted_labels[start_token] != 1:
+            continue
 
-            score = (
-                start_logits[start] + end_logits[end]
-            ).item()
+        end_position = position
 
-            if score > best_score:
-                best_score = score
-                best_answer = context[
-                    offsets[start][0]:offsets[end][1]
-                ]
+        while (
+            end_position + 1 < len(context_indices)
+            and predicted_labels[
+                context_indices[end_position + 1]
+            ] == 2
+        ):
+            end_position += 1
 
-    if null_score >= best_score:
-        return ""
+        end_token = context_indices[end_position]
 
+        score = probabilities[start_token, 1].item()
+
+        if score > best_score:
+            best_score = score
+
+            char_start = offsets[start_token][0]
+            char_end = offsets[end_token][1]
+
+            best_answer = context[char_start:char_end]
+
+    # No B-ANS predicted means no answer.
     return best_answer
 
 
 exact_matches = []
 f1_scores = []
+no_answer_predictions = 0
 
 for index, (_, row) in enumerate(validation.iterrows(), 1):
     prediction = predict_answer(
@@ -135,15 +142,29 @@ for index, (_, row) in enumerate(validation.iterrows(), 1):
     exact_matches.append(em)
     f1_scores.append(f1)
 
+    if prediction == "":
+        no_answer_predictions += 1
+
     if index <= 5:
         print(f"\nExample {index}")
         print("Gold:", repr(gold))
         print("Predicted:", repr(prediction))
 
     if index % 50 == 0:
-        print(f"Evaluated {index}/{len(validation)}", flush=True)
+        print(
+            f"Evaluated {index}/{len(validation)}",
+            flush=True,
+        )
 
-print("\n=== VALIDATION RESULTS ===")
+
+print("\n=== BIO VALIDATION RESULTS ===")
 print(f"Examples: {len(validation)}")
-print(f"Exact Match: {100 * sum(exact_matches) / len(exact_matches):.2f}%")
-print(f"Token F1: {100 * sum(f1_scores) / len(f1_scores):.2f}%")
+print(
+    f"Exact Match: "
+    f"{100 * sum(exact_matches) / len(exact_matches):.2f}%"
+)
+print(
+    f"Token F1: "
+    f"{100 * sum(f1_scores) / len(f1_scores):.2f}%"
+)
+print(f"No-answer predictions: {no_answer_predictions}")
