@@ -16,6 +16,8 @@ from collections import Counter
 
 from ku_nlp_group_25_project.utilities.load_dataset import load_dataset
 
+EXPERIMENTAL_I_FALLBACK = False
+
 LANGUAGES = ("ar", "ko", "te")
 MODEL_DIR = "models/w37_xlmr_bio_multilingual"
 MAX_LENGTH = 384
@@ -160,15 +162,65 @@ def print_metrics(label, records):
 
 def evaluate(data, predictor):
     results = []
+    missed_bio_counts = Counter()
     for index, (_, row) in enumerate(data.iterrows(), 1):
         prediction = predictor(str(row["question"]), str(row["context"]))
         add_record(results, row, prediction)
+        # Analyze incorrect no-answer predictions
+        if prediction is None and bool(row["answerable"]):
+            if hasattr(predictor, "last_bio_counts"):
+                counts = predictor.last_bio_counts
+
+                if counts["B-ANS"] > 0:
+                    missed_bio_counts["decoder_issue"] += 1
+                elif counts["I-ANS"] > 0:
+                    missed_bio_counts["I_without_B"] += 1
+                    gold_start = int(row["answer_start"])
+                    gold_end = gold_start + len(str(row["answer"]))
+
+                    if any(
+                        start < gold_end and end > gold_start
+                        for start, end in predictor.last_i_spans
+                    ):
+                        missed_bio_counts["I_overlaps_gold"] += 1
+                    if missed_bio_counts["I_without_B"] <= 5:
+                        context = str(row["context"])
+                        spans = predictor.last_i_spans
+
+                        gold_start = int(row["answer_start"])
+                        gold_end = gold_start + len(str(row["answer"]))
+
+                        overlap = sum(
+                            start < gold_end and end > gold_start
+                            for start, end in spans
+                        )
+
+                        print("\n--- Invalid BIO example ---")
+                        print("Language:", row["lang"])
+                        print("Gold answer:", repr(row["answer"]))
+                        print("Predicted I-ANS tokens:",
+                              [context[start:end] for start, end in spans[:15]])
+                        print("Tokens overlapping gold:", overlap, "/", len(spans))
+                else:
+                    missed_bio_counts["all_O"] += 1
         if index % 100 == 0:
             print(f"Evaluated {index}/{len(data)}", flush=True)
 
     for lang in LANGUAGES:
         print_metrics(lang, [r for r in results if r["lang"] == lang])
     print_metrics("OVERALL", results)
+    if hasattr(predictor, "last_bio_counts"):
+        print("\n=== MISSED ANSWER ANALYSIS ===")
+        print("All O predictions:", missed_bio_counts["all_O"])
+        print("I-ANS without B-ANS:", missed_bio_counts["I_without_B"])
+        print("I-ANS overlapping gold:", missed_bio_counts["I_overlaps_gold"])
+        print("Decoder issues:", missed_bio_counts["decoder_issue"])
+        print(
+            "Total missed answers:",
+            missed_bio_counts["all_O"]
+            + missed_bio_counts["I_without_B"]
+            + missed_bio_counts["decoder_issue"]
+        )
     assert len(results) == len(data), "Some validation examples were omitted!"
     return results
 
@@ -204,6 +256,20 @@ def get_model_predictor(model_dir):
         indices = [i for i, sid in enumerate(sequence_ids)
                    if sid == 1 and offsets[i][1] > offsets[i][0]]
 
+        # Diagnostic: count predicted BIO labels in the context
+        predict.last_bio_counts = {
+            "O": sum(labels[i] not in (B, I) for i in indices),
+            "B-ANS": sum(labels[i] == B for i in indices),
+            "I-ANS": sum(labels[i] == I for i in indices),
+        }
+
+        # Store I-ANS positions for error analysis
+        predict.last_i_spans = [
+            (offsets[i][0], offsets[i][1])
+            for i in indices
+            if labels[i] == I
+        ]
+
         # Frozen decoder: choose the candidate B-ANS with highest B probability,
         # then extend rightward through consecutive I-ANS labels. No B => empty.
         best_span, best_score = None, float("-inf")
@@ -217,9 +283,26 @@ def get_model_predictor(model_dir):
             if score > best_score:
                 best_score = score
                 best_span = (offsets[i][0], offsets[indices[last]][1])
+        # Experimental fallback: recover a span when only I-ANS is predicted
+        if EXPERIMENTAL_I_FALLBACK and best_span is None:
+            i_probs = logits.softmax(dim=-1)[:, I]
+
+            for pos, i in enumerate(indices):
+                if labels[i] != I:
+                    continue
+                if pos > 0 and labels[indices[pos - 1]] == I:
+                    continue
+
+                last = pos
+                while last + 1 < len(indices) and labels[indices[last + 1]] == I:
+                    last += 1
+
+                score = i_probs[i].item()
+                if score > best_score:
+                    best_score = score
+                    best_span = (offsets[i][0], offsets[indices[last]][1])
         return best_span
     return predict
-
 
 def self_test():
     from types import SimpleNamespace

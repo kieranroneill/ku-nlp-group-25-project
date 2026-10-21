@@ -1,4 +1,4 @@
-
+import os
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForTokenClassification
@@ -7,13 +7,13 @@ from ku_nlp_group_25_project.utilities.load_dataset import load_dataset
 
 import random
 
-SEED = 42
+SEED = int(os.getenv("W37_SEED", "42"))
 random.seed(SEED)
 torch.manual_seed(SEED)
 
 # Configuration
 MODEL_NAME = "FacebookAI/xlm-roberta-base"
-OUTPUT_DIR = "models/w37_xlmr_bio_multilingual"
+OUTPUT_DIR = f"models/w37_xlmr_bio_multilingual_seed_{SEED}"
 MAX_LENGTH = 384
 BATCH_SIZE = 4
 EPOCHS = 2
