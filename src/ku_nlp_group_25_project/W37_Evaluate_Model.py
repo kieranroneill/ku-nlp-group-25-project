@@ -1,14 +1,5 @@
-"""Week 37 BIO span-prediction evaluation following the shared protocol.
-
-Run from the repository root:
-  PYTHONPATH=src uv run python -m ku_nlp_group_25_project.W37_Evaluate_Model --mode baseline
-  PYTHONPATH=src uv run python -m ku_nlp_group_25_project.W37_Evaluate_Model --mode model
-
-A predicted answer is a character span (start, end) in the FULL context, or None.
-No gold annotations are used when producing model predictions. All validation
-examples are scored once, including examples whose gold answer is truncated.
-"""
-
+import csv
+from pathlib import Path
 import argparse
 import re
 import string
@@ -103,6 +94,17 @@ def add_record(results, row, prediction):
 
     results.append({
         "lang": str(row["lang"]),
+        "question": str(row["question"]),
+        "context": context,
+
+        "gold_start": true_span[0] if true_span is not None else -1,
+        "gold_end": true_span[1] if true_span is not None else -1,
+        "gold_answer": gold_text,
+
+        "pred_start": prediction[0] if prediction is not None else -1,
+        "pred_end": prediction[1] if prediction is not None else -1,
+        "pred_answer": pred_text,
+
         "gold_answerable": true_span is not None,
         "pred_answerable": prediction is not None,
         "span_em": float(prediction == true_span),
@@ -163,9 +165,10 @@ def print_metrics(label, records):
 def evaluate(data, predictor):
     results = []
     missed_bio_counts = Counter()
-    for index, (_, row) in enumerate(data.iterrows(), 1):
+    for index, (validation_index, row) in enumerate(data.iterrows(), 1):
         prediction = predictor(str(row["question"]), str(row["context"]))
         add_record(results, row, prediction)
+        results[-1]["validation_index"] = int(validation_index)
         # Analyze incorrect no-answer predictions
         if prediction is None and bool(row["answerable"]):
             if hasattr(predictor, "last_bio_counts"):
@@ -224,6 +227,33 @@ def evaluate(data, predictor):
     assert len(results) == len(data), "Some validation examples were omitted!"
     return results
 
+def save_predictions_csv(records, output_file):
+    """Save validation predictions for W40-W41 comparison."""
+
+    if not records:
+        raise ValueError("No predictions to save")
+
+    indices = [r["validation_index"] for r in records]
+
+    if len(indices) != len(set(indices)):
+        raise ValueError("Duplicate validation indices")
+
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fieldnames = ["validation_index"] + [
+        key for key in records[0]
+        if key != "validation_index"
+    ]
+
+    with output_path.open(
+        "w", encoding="utf-8", newline=""
+    ) as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(records)
+
+    print(f"Saved {len(records)} predictions to {output_path}")
 
 def get_model_predictor(model_dir):
     # Imports and GPU initialization only happen in --mode model.
@@ -317,15 +347,27 @@ def self_test():
     assert prf(2, 0, 0) == (1.0, 1.0, 1.0)
     assert qa_token_f1("", "") == 1.0
     assert qa_token_f1("New York", "York") > 0.0
-    row = {"context": context, "lang": "ko", "answerable": True,
-           "answer_start": 0, "answer": "New York"}
+    row = {
+        "question": "Which city is mentioned?",
+        "context": context,
+        "lang": "ko",
+        "answerable": True,
+        "answer_start": 0,
+        "answer": "New York"
+    }
     records = []
     add_record(records, row, (0, 8))
     assert records[0]["span_em"] == 1.0
     add_record(records, row, None)
     assert records[1]["answer_token_example_f1"] == 0.0
-    empty = {"context": context, "lang": "ar", "answerable": False,
-             "answer_start": -1, "answer": "no"}
+    empty = {
+        "question": "What is the capital of Canada?",
+        "context": context,
+        "lang": "ar",
+        "answerable": False,
+        "answer_start": -1,
+        "answer": "no"
+    }
     add_record(records, empty, None)
     assert records[-1]["span_em"] == 1.0
     assert records[-1]["answer_token_example_f1"] == 1.0
@@ -337,6 +379,11 @@ def main():
     parser.add_argument("--mode", choices=("baseline", "model", "self-test"),
                         default="baseline")
     parser.add_argument("--model-dir", default=MODEL_DIR)
+    parser.add_argument(
+        "--predictions-out",
+        default=None,
+        help="Path to save validation predictions as CSV",
+    )
     args = parser.parse_args()
     self_test()
     if args.mode == "self-test":
@@ -354,7 +401,10 @@ def main():
     else:
         print(f"Model directory: {args.model_dir}")
         predictor = get_model_predictor(args.model_dir)
-    evaluate(validation, predictor)
+    records = evaluate(validation, predictor)
+
+    if args.predictions_out:
+        save_predictions_csv(records, args.predictions_out)
 
 
 if __name__ == "__main__":

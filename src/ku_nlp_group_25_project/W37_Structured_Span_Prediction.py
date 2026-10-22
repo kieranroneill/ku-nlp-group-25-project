@@ -165,6 +165,7 @@ def validate_bio_sequence(labels):
 
     return True
 def test_bio_validator():
+
     # Valid: one answer span or no answer
     assert validate_bio_sequence(["O", "B-ANS", "I-ANS", "O"])
     assert validate_bio_sequence(["B-ANS", "O", "O"])
@@ -179,6 +180,47 @@ def test_bio_validator():
     print("BIO validator tests passed.")
 
 test_bio_validator()
+
+def test_span_boundaries():
+    cases = [
+        # Answer begins at character position zero
+        ("New York City is busy.", True, "New York", 0),
+
+        # Answer next to punctuation
+        ("She lives in (Ulm), Germany.", True, "Ulm", None),
+
+        # Multi-token answer
+        ("The ship crossed the North Atlantic Ocean.", True,
+         "North Atlantic Ocean", None),
+
+        # Unanswerable example
+        ("There is no answer here.", False, "", -1),
+    ]
+
+    for context, answerable, answer, start in cases:
+        if answerable and start is None:
+            start = context.index(answer)
+
+        tokens, offsets, labels = character_span_to_bio(
+            context, answerable, start, answer
+        )
+
+        recovered_start, recovered_answer = bio_to_character_span(
+            context, offsets, labels
+        )
+
+        assert recovered_start == start
+        assert recovered_answer == answer
+
+        if answerable:
+            assert labels.count("B-ANS") == 1
+        else:
+            assert all(label == "O" for label in labels)
+
+    print("Boundary tests passed!")
+
+
+test_span_boundaries()
 
 # Prepare one QA example for the structured span prediction pipeline.
 def prepare_example(row):
