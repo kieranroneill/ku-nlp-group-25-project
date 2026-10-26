@@ -74,6 +74,58 @@ def read_challenge(path):
     print(f"Validated {len(rows)} records in {len(pairs)} pairs.")
     return rows
 
+=======
+DEFAULT_DATA = "data/challenge_sets/w43_w44_challenge.csv"
+DEFAULT_OUTPUT = "outputs/w43_w44_challenge_predictions.csv"
+DEFAULT_SUMMARY = "outputs/w43_w44_challenge_metrics.csv"
+DEFAULT_W37 = "models/w37_xlmr_bio_multilingual"
+
+
+# Load the challenge CSV and check its five paired examples.
+def read_challenge(path):
+    with Path(path).open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    required = {"id", "pair_id", "lang", "variant", "question", "context",
+                "answerable", "answer", "answer_start"}
+    if not rows or not required.issubset(rows[0]):
+        raise ValueError(f"CSV is empty or missing columns: {required - (rows[0].keys() if rows else set())}")
+    if len(rows) != 10 or len({r["id"] for r in rows}) != 10:
+        raise ValueError("Expected exactly 10 rows with unique IDs")
+
+    pairs = defaultdict(list)
+    for row in rows:
+        pairs[row["pair_id"]].append(row)
+        if row["lang"] not in {"ar", "ko", "te"}:
+            raise ValueError(f"Unexpected language: {row['id']}")
+        if row["variant"] not in {"answerable", "unanswerable"}:
+            raise ValueError(f"Unexpected variant: {row['id']}")
+        flag = int(row["answerable"])
+        start = int(row["answer_start"])
+        answer = row["answer"]
+        if flag != int(row["variant"] == "answerable"):
+            raise ValueError(f"Answerability disagrees with variant: {row['id']}")
+        if flag and (not answer or start < 0 or row["context"][start:start + len(answer)] != answer):
+            raise ValueError(f"Invalid answer span: {row['id']}")
+        if not flag and (answer != "" or start != -1):
+            raise ValueError(f"Unanswerable row must have empty answer and start=-1: {row['id']}")
+        if not row["question"].strip() or not row["context"].strip():
+            raise ValueError(f"Empty question/context: {row['id']}")
+
+    if len(pairs) != 5:
+        raise ValueError("Expected five pairs")
+    for pair_id, group in pairs.items():
+        if len(group) != 2 or {r["variant"] for r in group} != {"answerable", "unanswerable"}:
+            raise ValueError(f"Pair must have one example of each type: {pair_id}")
+        if group[0]["context"] != group[1]["context"] or group[0]["lang"] != group[1]["lang"]:
+            raise ValueError(f"Pair contexts/languages must match: {pair_id}")
+        if group[0]["question"] == group[1]["question"]:
+            raise ValueError(f"Pair questions must differ: {pair_id}")
+
+    print(f"Validated {len(rows)} rows in {len(pairs)} pairs (5 answerable, 5 unanswerable).")
+    return rows
+
+
+>>>>>>> 75f8b25 (Add W43-W44 challenge set and BIO evaluation findings)
 # Normalize answer text for consistent scoring.
 def normalize_answer(text):
     text = text.lower()
@@ -244,6 +296,7 @@ def main():
     write_csv(args.output, predictions)
     summaries = summarize(predictions)
     write_csv(args.summary, summaries)
+<<<<<<< HEAD
 
     # Count the total number of challenge pairs.
     n_pairs = len({r["pair_id"] for r in rows})
@@ -252,6 +305,12 @@ def main():
         print(f"{row['model']}: EM={row['overall_em']:.3f}, token F1={row['overall_token_f1']:.3f}, "
               f"answerability macro-F1={row['answerability_macro_f1']:.3f}, "
               f"fully correct pairs={row['fully_correct_pairs']}/{n_pairs}")
+=======
+    for row in summaries:
+        print(f"{row['model']}: EM={row['overall_em']:.3f}, token F1={row['overall_token_f1']:.3f}, "
+              f"answerability macro-F1={row['answerability_macro_f1']:.3f}, "
+              f"fully correct pairs={row['fully_correct_pairs']}/5")
+>>>>>>> 75f8b25 (Add W43-W44 challenge set and BIO evaluation findings)
 
 
 if __name__ == "__main__":
