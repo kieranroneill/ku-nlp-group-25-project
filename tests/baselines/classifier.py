@@ -1,6 +1,6 @@
 import pandas as pd
 
-from ku_nlp_group_25_project.week_36 import Classifier
+from ku_nlp_group_25_project.baselines import Classifier
 
 
 class TestClassifierConstructor:
