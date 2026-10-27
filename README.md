@@ -11,6 +11,7 @@
 * [2. Usage](#-2-usage)
   - [2.1. Requirements](#21-requirements)
   - [2.2. Installation](#22-installation)
+  - [2.3. Validate Challenge Set](#23-validate-challenge-set)
 * [3. Appendix](#-3-appendix)
   - [3.1. Useful commands](#31-useful-commands)
   - [3.2. Useful links](#32-useful-links)
@@ -21,6 +22,8 @@
 
 ```text
 .
+├─ data/                            <-- Data files
+│   └── ...
 ├─ docs/                            <-- LaTex files for report
 │   ├── main.tex
 │   └── ...
@@ -28,6 +31,8 @@
 │   ├── notebook.ipynb
 │   └── ...
 ├─ results/                         <-- Results of analysis
+│   └── ...
+├─ scripts/                         <-- Stand-alone scripts
 │   └── ...
 ├─ src/                             <-- Internal Python code and packages
 │   ├── <package-name>/
@@ -67,6 +72,18 @@ Install the dependencies and set up the Python virtual environment using:
 
 ```bash
 $ uv sync
+```
+
+<sup>[Back to top ^][table-of-contents]</sup>
+
+### 2.3. Validate Challenge Set
+
+Included in `scripts/` is a stand-alone Python script to validate a challenge set.
+
+Once you have set-up the environment in the [above](#22-installation) step, you can validate the challenge set using:
+
+```bash
+$ uv run scripts/validate_challenge.py <path-to-challenge-set>
 ```
 
 <sup>[Back to top ^][table-of-contents]</sup>
