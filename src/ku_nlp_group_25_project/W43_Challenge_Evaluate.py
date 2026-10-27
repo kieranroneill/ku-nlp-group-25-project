@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
-DEFAULT_DATA = "data/challenge.json"
+DEFAULT_DATA = "data/challenge_sets/challenge.json"
 DEFAULT_OUTPUT = "outputs/week_43_44/challenge_predictions.csv"
 DEFAULT_SUMMARY = "outputs/week_43_44/challenge_metrics.csv"
 DEFAULT_W37 = "models/w37_xlmr_bio_multilingual"
@@ -42,70 +42,6 @@ def read_challenge(path):
         pairs[row["pair_id"]].append(row)
 
         if row["lang"] not in {"ar", "ko", "te", "zh"}:
-            raise ValueError(f"Unexpected language: {row['lang']}")
-
-        if not isinstance(row["answerable"], bool):
-            raise ValueError(f"Invalid answerability: {row['id']}")
-
-        answer = row["answer"]
-        start = row["answer_start"]
-        context = row["context"]
-
-        if not isinstance(start, int) or isinstance(start, bool):
-            raise ValueError(f"Invalid answer offset: {row['id']}")
-
-        if row["answerable"]:
-            if not answer or start < 0 or context[start:start + len(answer)] != answer:
-                raise ValueError(f"Invalid answer span: {row['id']}")
-        elif answer != "" or start != -1:
-            raise ValueError(f"Invalid unanswerable record: {row['id']}")
-
-    for pair_id, group in pairs.items():
-        if len(group) != 2:
-            raise ValueError(f"Invalid pair size: {pair_id}")
-
-        if {row["answerable"] for row in group} != {True, False}:
-            raise ValueError(f"Pair must contain one answerable and one unanswerable record: {pair_id}")
-
-        for field in ("context", "lang", "created_by", "source_url"):
-            if group[0][field] != group[1][field]:
-                raise ValueError(f"Pair mismatch in {field}: {pair_id}")
-
-    print(f"Validated {len(rows)} records in {len(pairs)} pairs.")
-    return rows
-
-DEFAULT_DATA = "data/challenge.json"
-DEFAULT_OUTPUT = "outputs/week_43_44/challenge_predictions.csv"
-DEFAULT_SUMMARY = "outputs/week_43_44/challenge_metrics.csv"
-DEFAULT_W37 = "models/w37_xlmr_bio_multilingual"
-
-# Load and validate challenge records from the official JSON file.
-def read_challenge(path):
-    with Path(path).open(encoding="utf-8") as file:
-        rows = json.load(file)
-
-    if not isinstance(rows, list) or not rows:
-        raise ValueError("Challenge JSON must contain a non-empty list")
-
-    required = {
-        "id", "pair_id", "created_by", "question", "context",
-        "lang", "answerable", "answer_start", "answer", "source_url"
-    }
-
-    ids = set()
-    pairs = defaultdict(list)
-
-    for row in rows:
-        if not isinstance(row, dict) or not required.issubset(row):
-            raise ValueError("Challenge record has missing required fields")
-
-        if row["id"] in ids:
-            raise ValueError(f"Duplicate ID: {row['id']}")
-
-        ids.add(row["id"])
-        pairs[row["pair_id"]].append(row)
-
-        if row["lang"] not in {"ar", "ko", "te"}:
             raise ValueError(f"Unexpected language: {row['lang']}")
 
         if not isinstance(row["answerable"], bool):
@@ -310,13 +246,17 @@ def main():
     write_csv(args.summary, summaries)
 
 
-# Count the total number of challenge pairs.
-n_pairs = len({r["pair_id"] for r in rows})
+    # Count the total number of challenge pairs.
+    n_pairs = len({r["pair_id"] for r in rows})
 
-for row in summaries:
-    print(f"{row['model']}: EM={row['overall_em']:.3f}, token F1={row['overall_token_f1']:.3f}, "
-          f"answerability macro-F1={row['answerability_macro_f1']:.3f}, "
-          f"fully correct pairs={row['fully_correct_pairs']}/{n_pairs}")
+    for row in summaries:
+        print(f"{row['model']}: EM={row['overall_em']:.3f}, token F1={row['overall_token_f1']:.3f}, "
+              f"answerability macro-F1={row['answerability_macro_f1']:.3f}, "
+              f"fully correct pairs={row['fully_correct_pairs']}/{n_pairs}")
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":
