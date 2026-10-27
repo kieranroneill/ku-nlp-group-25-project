@@ -41,7 +41,7 @@ def read_challenge(path):
         ids.add(row["id"])
         pairs[row["pair_id"]].append(row)
 
-        if row["lang"] not in {"ar", "ko", "te"}:
+        if row["lang"] not in {"ar", "ko", "te", "zh"}:
             raise ValueError(f"Unexpected language: {row['lang']}")
 
         if not isinstance(row["answerable"], bool):
