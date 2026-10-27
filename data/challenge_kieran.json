@@ -1,0 +1,122 @@
+[
+  {
+    "id": "1474d8c6-990e-43b5-a5eb-fa7991aa4d92",
+    "pair_id": "dad3d291-4ff5-4aa7-9593-b7a1f51ae5fb",
+    "created_by": "Kieran O'Neill",
+    "question": "في أي عام تأسست جامعة البصرة؟",
+    "context": "Basra is a port city in southern Iraq and the third largest city in the country, behind Baghdad and Mosul. It was founded in 636 as a military camp, and the University of Basrah was founded in 1964.",
+    "lang": "ar",
+    "answerable": true,
+    "answer_start": 193,
+    "answer": "1964",
+    "source_url": "https://en.wikipedia.org/wiki/Basra"
+  },
+  {
+    "id": "b97cd2aa-e540-4538-9b57-0bbfe50fd08c",
+    "pair_id": "dad3d291-4ff5-4aa7-9593-b7a1f51ae5fb",
+    "created_by": "Kieran O'Neill",
+    "question": "في أي عام تأسست جامعة بغداد؟",
+    "context": "Basra is a port city in southern Iraq and the third largest city in the country, behind Baghdad and Mosul. It was founded in 636 as a military camp, and the University of Basrah was founded in 1964.",
+    "lang": "ar",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://en.wikipedia.org/wiki/Basra"
+  },
+  {
+    "id": "ae77d0ff-232c-4a83-9617-a032181065c4",
+    "pair_id": "2b5f0afc-76fc-4646-9992-4603b1329402",
+    "created_by": "Kieran O'Neill",
+    "question": "في أي تاريخ بدأت محطة الطاقة الرئيسية في سد الموصل بتوليد الكهرباء؟",
+    "context": "The Mosul Dam is the largest dam in Iraq, an earth-fill embankment on the Tigris river in Nineveh Governorate, upstream of the city of Mosul. Construction began in 1981, and its main power station began generating electricity on 7 July 1986.",
+    "lang": "ar",
+    "answerable": true,
+    "answer_start": 229,
+    "answer": "7 July 1986",
+    "source_url": "https://en.wikipedia.org/wiki/Mosul_Dam"
+  },
+  {
+    "id": "5641ec5b-4f16-4acd-b866-8d140dd23174",
+    "pair_id": "2b5f0afc-76fc-4646-9992-4603b1329402",
+    "created_by": "Kieran O'Neill",
+    "question": "في أي عام بدأ سد الموصل في حجز مياه نهر دجلة؟",
+    "context": "The Mosul Dam is the largest dam in Iraq, an earth-fill embankment on the Tigris river in Nineveh Governorate, upstream of the city of Mosul. Construction began in 1981, and its main power station began generating electricity on 7 July 1986.",
+    "lang": "ar",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://en.wikipedia.org/wiki/Mosul_Dam"
+  },
+  {
+    "id": "9d3fd526-2967-4daa-9f29-47900b638d1b",
+    "pair_id": "f4debdad-3d4f-4df3-9c44-74efc16e43f7",
+    "created_by": "Kieran O'Neill",
+    "question": "해인사는 몇 년도부터 팔만대장경 목판을 보관하기 시작했나요?",
+    "context": "Haeinsa is a Buddhist temple in Gayasan National Park, South Gyeongsang Province, South Korea, and the head temple of the Jogye Order of Korean Seon Buddhism. It is most notable as the home of the Tripitaka Koreana, the Buddhist scriptures carved onto 81,350 wooden printing blocks, which it has housed since 1398.",
+    "lang": "ko",
+    "answerable": true,
+    "answer_start": 309,
+    "answer": "1398",
+    "source_url": "https://en.wikipedia.org/wiki/Haeinsa"
+  },
+  {
+    "id": "fa7023db-92ab-4202-a3ff-245a5b9c25bf",
+    "pair_id": "f4debdad-3d4f-4df3-9c44-74efc16e43f7",
+    "created_by": "Kieran O'Neill",
+    "question": "팔만대장경 목판은 어느 해에 새겨졌나요?",
+    "context": "Haeinsa is a Buddhist temple in Gayasan National Park, South Gyeongsang Province, South Korea, and the head temple of the Jogye Order of Korean Seon Buddhism. It is most notable as the home of the Tripitaka Koreana, the Buddhist scriptures carved onto 81,350 wooden printing blocks, which it has housed since 1398.",
+    "lang": "ko",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://en.wikipedia.org/wiki/Haeinsa"
+  },
+  {
+    "id": "ad54e3be-a063-4944-abf7-983cabcda456",
+    "pair_id": "ac3f5ff9-3845-4a3d-abf0-fc4b8e27ec6f",
+    "created_by": "Kieran O'Neill",
+    "question": "한라산 정상은 높이가 얼마나 되나요?",
+    "context": "Hallasan is a shield volcano that forms much of Jeju Island in South Korea, and its summit, at 1,947 metres, is the highest point in the country. Its last recorded eruption occurred in 1007 CE, and it is commonly counted as one of the three main mountains of South Korea, along with Jirisan and Seoraksan.",
+    "lang": "ko",
+    "answerable": true,
+    "answer_start": 95,
+    "answer": "1,947 metres",
+    "source_url": "https://en.wikipedia.org/wiki/Hallasan"
+  },
+  {
+    "id": "56245829-7cf7-46ec-b6b4-3d6c48e77845",
+    "pair_id": "ac3f5ff9-3845-4a3d-abf0-fc4b8e27ec6f",
+    "created_by": "Kieran O'Neill",
+    "question": "설악산 정상은 높이가 얼마나 되나요?",
+    "context": "Hallasan is a shield volcano that forms much of Jeju Island in South Korea, and its summit, at 1,947 metres, is the highest point in the country. Its last recorded eruption occurred in 1007 CE, and it is commonly counted as one of the three main mountains of South Korea, along with Jirisan and Seoraksan.",
+    "lang": "ko",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://en.wikipedia.org/wiki/Hallasan"
+  },
+  {
+    "id": "f46ba10e-552c-4cbb-9140-a1c18d943b0a",
+    "pair_id": "4b3dff54-5daa-42c1-bf0b-a13669dbef85",
+    "created_by": "Kieran O'Neill",
+    "question": "TRIPS ఒప్పందం కింద భౌగోళిక సూచిక (Geographical Indication) రక్షణ పొందిన భారతదేశపు మొట్టమొదటి ఉత్పత్తిగా డార్జిలింగ్ టీ ఏ సంవత్సరంలో నిలిచింది?",
+    "context": "Darjeeling tea is grown and processed in the Darjeeling and Kalimpong districts of West Bengal, India. In 2004 it became India's first product to receive legal geographical indication protection under the WTO TRIPS Agreement, and since then the term Darjeeling tea has been a registered geographical indication. The Tea Board of India recognises 87 tea estates as producers of Darjeeling tea, covering 17,500 hectares.\n\n",
+    "lang": "te",
+    "answerable": true,
+    "answer_start": 106,
+    "answer": "2004",
+    "source_url": "https://en.wikipedia.org/wiki/Darjeeling_tea"
+  },
+  {
+    "id": "8b27a6cd-fc39-4386-90f1-c756c896903a",
+    "pair_id": "4b3dff54-5daa-42c1-bf0b-a13669dbef85",
+    "created_by": "Kieran O'Neill",
+    "question": "యూరోపియన్ యూనియన్లో డార్జిలింగ్ టీకి రక్షిత భౌగోళిక సూచిక (PGI) హోదా ఏ సంవత్సరంలో లభించింది?",
+    "context": "Darjeeling tea is grown and processed in the Darjeeling and Kalimpong districts of West Bengal, India. In 2004 it became India's first product to receive legal geographical indication protection under the WTO TRIPS Agreement, and since then the term Darjeeling tea has been a registered geographical indication. The Tea Board of India recognises 87 tea estates as producers of Darjeeling tea, covering 17,500 hectares.\n\n",
+    "lang": "te",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://en.wikipedia.org/wiki/Darjeeling_tea"
+  }
+]
