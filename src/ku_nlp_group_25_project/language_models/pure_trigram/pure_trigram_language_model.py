@@ -16,7 +16,7 @@ class PureTrigramLanguageModel:
      Attributes:
          _minimum_count (int): Minimum total training frequency for a retained text token.
          _smoothing (float): Positive add-k constant.
-         _vocabulary (set[str]): Prediction targets, including UNK and EOS but not BOS.
+         _vocabulary (set[str]): Prediction targets, including UNK and EOS.
          _counts (Counter): Counts of (older history, newer history, target) triples.
          _histories (Counter): Counts of two-token histories with an outgoing target.
          _trained (bool): Whether training has completed.
