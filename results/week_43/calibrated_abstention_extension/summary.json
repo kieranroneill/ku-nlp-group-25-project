@@ -1,0 +1,356 @@
+{
+  "calibration": {
+    "average_risk": 0.3446109564457355,
+    "average_risk_by_language": {
+      "ar": 0.3111008886852689,
+      "ko": 0.28438174254545323,
+      "te": 0.48185921253644093
+    },
+    "calibrated_expected_calibration_error": 0.03192903622236232,
+    "expected_calibration_error": 0.06226139349153788,
+    "feature_area_under_roc": 0.9152063695208092,
+    "temperature": 5.076399382386589
+  },
+  "comparison": {
+    "difference": 0.00976122645107036,
+    "lower": -0.006892887055541991,
+    "not_better_fraction": 0.144,
+    "upper": 0.026931752532524698
+  },
+  "metrics": {
+    "A_global_threshold": {
+      "abstention_recall": 0.6951219512195121,
+      "answerable_coverage": 0.9747729566094854,
+      "answerable_f1": 0.9626307922272048,
+      "answered_precision": 0.9507874015748031,
+      "count": 1155,
+      "exact_match": 0.5532467532467532,
+      "macro_f1": 0.8575530198759787,
+      "token_f1": 0.6464924696083902,
+      "unanswerable_f1": 0.7524752475247525
+    },
+    "B_per_language_thresholds": {
+      "abstention_recall": 0.7378048780487805,
+      "answerable_coverage": 0.970736629667003,
+      "answerable_f1": 0.9639278557114228,
+      "answered_precision": 0.9572139303482587,
+      "count": 1155,
+      "exact_match": 0.5584415584415584,
+      "macro_f1": 0.867314246327049,
+      "token_f1": 0.6518174589669931,
+      "unanswerable_f1": 0.7707006369426752
+    },
+    "C_temperature_scaled": {
+      "abstention_recall": 0.6951219512195121,
+      "answerable_coverage": 0.9747729566094854,
+      "answerable_f1": 0.9626307922272048,
+      "answered_precision": 0.9507874015748031,
+      "count": 1155,
+      "exact_match": 0.5532467532467532,
+      "macro_f1": 0.8575530198759787,
+      "token_f1": 0.6464924696083902,
+      "unanswerable_f1": 0.7524752475247525
+    },
+    "D_constrained_recall": {
+      "abstention_recall": 0.8963414634146342,
+      "answerable_coverage": 0.7749747729566094,
+      "answerable_f1": 0.8648648648648649,
+      "answered_precision": 0.978343949044586,
+      "count": 1155,
+      "exact_match": 0.5186147186147186,
+      "macro_f1": 0.707713331308837,
+      "token_f1": 0.59097741160401,
+      "unanswerable_f1": 0.550561797752809
+    },
+    "E_feature_combiner": {
+      "abstention_recall": 0.7317073170731707,
+      "answerable_coverage": 0.9687184661957619,
+      "answerable_f1": 0.9624060150375939,
+      "answered_precision": 0.9561752988047809,
+      "count": 1155,
+      "exact_match": 0.5584415584415584,
+      "macro_f1": 0.8621553884711779,
+      "token_f1": 0.6507721612830398,
+      "unanswerable_f1": 0.7619047619047619
+    },
+    "F_fixed_probability": {
+      "abstention_recall": 0.6097560975609756,
+      "answerable_coverage": 0.9868819374369324,
+      "answerable_f1": 0.9621249385145105,
+      "answered_precision": 0.9385796545105566,
+      "count": 1155,
+      "exact_match": 0.541991341991342,
+      "macro_f1": 0.842073299582165,
+      "token_f1": 0.6375798245192745,
+      "unanswerable_f1": 0.7220216606498195
+    }
+  },
+  "metrics_by_language": {
+    "A_global_threshold": {
+      "ar": {
+        "abstention_recall": 0.9423076923076923,
+        "answerable_coverage": 0.9752066115702479,
+        "answerable_f1": 0.9833333333333333,
+        "answered_precision": 0.9915966386554622,
+        "count": 415,
+        "exact_match": 0.5734939759036145,
+        "macro_f1": 0.937121212121212,
+        "token_f1": 0.6688082164628267,
+        "unanswerable_f1": 0.8909090909090909
+      },
+      "ko": {
+        "abstention_recall": 0.6842105263157895,
+        "answerable_coverage": 0.9821958456973294,
+        "answerable_f1": 0.9821958456973294,
+        "answered_precision": 0.9821958456973294,
+        "count": 356,
+        "exact_match": 0.5842696629213483,
+        "macro_f1": 0.8332031860065594,
+        "token_f1": 0.6899734580445974,
+        "unanswerable_f1": 0.6842105263157895
+      },
+      "te": {
+        "abstention_recall": 0.5591397849462365,
+        "answerable_coverage": 0.9656357388316151,
+        "answerable_f1": 0.9168026101141925,
+        "answered_precision": 0.8726708074534162,
+        "count": 384,
+        "exact_match": 0.5026041666666666,
+        "macro_f1": 0.7938851760248382,
+        "token_f1": 0.5820646914107837,
+        "unanswerable_f1": 0.6709677419354839
+      }
+    },
+    "B_per_language_thresholds": {
+      "ar": {
+        "abstention_recall": 0.9615384615384616,
+        "answerable_coverage": 0.9752066115702479,
+        "answerable_f1": 0.9847009735744089,
+        "answered_precision": 0.9943820224719101,
+        "count": 415,
+        "exact_match": 0.5759036144578313,
+        "macro_f1": 0.9428009372376549,
+        "token_f1": 0.6712178550170437,
+        "unanswerable_f1": 0.9009009009009009
+      },
+      "ko": {
+        "abstention_recall": 0.631578947368421,
+        "answerable_coverage": 0.9970326409495549,
+        "answerable_f1": 0.9882352941176471,
+        "answered_precision": 0.9795918367346939,
+        "count": 356,
+        "exact_match": 0.5842696629213483,
+        "macro_f1": 0.8691176470588236,
+        "token_f1": 0.6923983115930464,
+        "unanswerable_f1": 0.75
+      },
+      "te": {
+        "abstention_recall": 0.6344086021505376,
+        "answerable_coverage": 0.9347079037800687,
+        "answerable_f1": 0.9112227805695142,
+        "answered_precision": 0.8888888888888888,
+        "count": 384,
+        "exact_match": 0.515625,
+        "macro_f1": 0.800640630050839,
+        "token_f1": 0.5932290529887482,
+        "unanswerable_f1": 0.6900584795321637
+      }
+    },
+    "C_temperature_scaled": {
+      "ar": {
+        "abstention_recall": 0.9423076923076923,
+        "answerable_coverage": 0.9752066115702479,
+        "answerable_f1": 0.9833333333333333,
+        "answered_precision": 0.9915966386554622,
+        "count": 415,
+        "exact_match": 0.5734939759036145,
+        "macro_f1": 0.937121212121212,
+        "token_f1": 0.6688082164628267,
+        "unanswerable_f1": 0.8909090909090909
+      },
+      "ko": {
+        "abstention_recall": 0.6842105263157895,
+        "answerable_coverage": 0.9821958456973294,
+        "answerable_f1": 0.9821958456973294,
+        "answered_precision": 0.9821958456973294,
+        "count": 356,
+        "exact_match": 0.5842696629213483,
+        "macro_f1": 0.8332031860065594,
+        "token_f1": 0.6899734580445974,
+        "unanswerable_f1": 0.6842105263157895
+      },
+      "te": {
+        "abstention_recall": 0.5591397849462365,
+        "answerable_coverage": 0.9656357388316151,
+        "answerable_f1": 0.9168026101141925,
+        "answered_precision": 0.8726708074534162,
+        "count": 384,
+        "exact_match": 0.5026041666666666,
+        "macro_f1": 0.7938851760248382,
+        "token_f1": 0.5820646914107837,
+        "unanswerable_f1": 0.6709677419354839
+      }
+    },
+    "D_constrained_recall": {
+      "ar": {
+        "abstention_recall": 0.9038461538461539,
+        "answerable_coverage": 0.9807162534435262,
+        "answerable_f1": 0.9834254143646409,
+        "answered_precision": 0.9861495844875346,
+        "count": 415,
+        "exact_match": 0.5686746987951807,
+        "macro_f1": 0.9351089335974148,
+        "token_f1": 0.6642724262431244,
+        "unanswerable_f1": 0.8867924528301887
+      },
+      "ko": {
+        "abstention_recall": 0.8947368421052632,
+        "answerable_coverage": 0.8011869436201781,
+        "answerable_f1": 0.8866995073891626,
+        "answered_precision": 0.9926470588235294,
+        "count": 356,
+        "exact_match": 0.5421348314606742,
+        "macro_f1": 0.6083982973839017,
+        "token_f1": 0.6228065814607427,
+        "unanswerable_f1": 0.3300970873786408
+      },
+      "te": {
+        "abstention_recall": 0.8924731182795699,
+        "answerable_coverage": 0.4879725085910653,
+        "answerable_f1": 0.6410835214446953,
+        "answered_precision": 0.9342105263157895,
+        "count": 384,
+        "exact_match": 0.4427083333333333,
+        "macro_f1": 0.5759263761069631,
+        "token_f1": 0.4822570586242461,
+        "unanswerable_f1": 0.5107692307692308
+      }
+    },
+    "E_feature_combiner": {
+      "ar": {
+        "abstention_recall": 0.9615384615384616,
+        "answerable_coverage": 0.977961432506887,
+        "answerable_f1": 0.9861111111111112,
+        "answered_precision": 0.9943977591036415,
+        "count": 415,
+        "exact_match": 0.5759036144578313,
+        "macro_f1": 0.9476010101010102,
+        "token_f1": 0.6693594409686934,
+        "unanswerable_f1": 0.9090909090909091
+      },
+      "ko": {
+        "abstention_recall": 0.6842105263157895,
+        "answerable_coverage": 0.9762611275964391,
+        "answerable_f1": 0.9791666666666666,
+        "answered_precision": 0.982089552238806,
+        "count": 356,
+        "exact_match": 0.5842696629213483,
+        "macro_f1": 0.8145833333333333,
+        "token_f1": 0.6882178400670693,
+        "unanswerable_f1": 0.65
+      },
+      "te": {
+        "abstention_recall": 0.6129032258064516,
+        "answerable_coverage": 0.9484536082474226,
+        "answerable_f1": 0.9154228855721394,
+        "answered_precision": 0.8846153846153846,
+        "count": 384,
+        "exact_match": 0.515625,
+        "macro_f1": 0.8031659882406151,
+        "token_f1": 0.5959690812917361,
+        "unanswerable_f1": 0.6909090909090909
+      }
+    },
+    "F_fixed_probability": {
+      "ar": {
+        "abstention_recall": 0.8846153846153846,
+        "answerable_coverage": 0.9807162534435262,
+        "answerable_f1": 0.9820689655172414,
+        "answered_precision": 0.9834254143646409,
+        "count": 415,
+        "exact_match": 0.5662650602409639,
+        "macro_f1": 0.9291297208538588,
+        "token_f1": 0.6618627876889076,
+        "unanswerable_f1": 0.8761904761904762
+      },
+      "ko": {
+        "abstention_recall": 0.5789473684210527,
+        "answerable_coverage": 0.9970326409495549,
+        "answerable_f1": 0.986784140969163,
+        "answered_precision": 0.9767441860465116,
+        "count": 356,
+        "exact_match": 0.5814606741573034,
+        "macro_f1": 0.8482307801620008,
+        "token_f1": 0.6895893228290015,
+        "unanswerable_f1": 0.7096774193548387
+      },
+      "te": {
+        "abstention_recall": 0.4623655913978495,
+        "answerable_coverage": 0.9828178694158075,
+        "answerable_f1": 0.9122807017543859,
+        "answered_precision": 0.8511904761904762,
+        "count": 384,
+        "exact_match": 0.4791666666666667,
+        "macro_f1": 0.7611048898842852,
+        "token_f1": 0.5631193789107837,
+        "unanswerable_f1": 0.6099290780141844
+      }
+    }
+  },
+  "thresholds": {
+    "A_global_threshold": {
+      "cutoff": -2.786309778690338,
+      "language_cutoffs": {},
+      "temperature": 1.0
+    },
+    "B_per_language_thresholds": {
+      "cutoff": -2.786309778690338,
+      "language_cutoffs": {
+        "ar": -3.2907791137695312,
+        "ko": -0.4973607696592808,
+        "te": -4.550312548875809
+      },
+      "temperature": 1.0
+    },
+    "C_temperature_scaled": {
+      "cutoff": -0.6338648714429451,
+      "language_cutoffs": {},
+      "temperature": 5.076399382386589
+    },
+    "D_constrained_recall": {
+      "cutoff": -14.920562148094177,
+      "language_cutoffs": {
+        "ar": -0.2680683359503746,
+        "ko": -14.254021883010864,
+        "te": -18.12300157546997
+      },
+      "temperature": 1.0
+    },
+    "E_feature_combiner": {
+      "cutoff": -0.22150155526016094,
+      "language_cutoffs": {},
+      "temperature": 1.0
+    },
+    "F_fixed_probability": {
+      "cutoff": -0.5,
+      "language_cutoffs": {},
+      "temperature": 5.076399382386589
+    }
+  },
+  "transitions": {
+    "B_per_language_thresholds": {
+      "broken_abstentions": 1,
+      "broken_answers": 9,
+      "rescued_abstentions": 8,
+      "rescued_answers": 5,
+      "unchanged": 1132
+    },
+    "D_constrained_recall": {
+      "broken_abstentions": 2,
+      "broken_answers": 200,
+      "rescued_abstentions": 35,
+      "rescued_answers": 2,
+      "unchanged": 916
+    }
+  }
+}
