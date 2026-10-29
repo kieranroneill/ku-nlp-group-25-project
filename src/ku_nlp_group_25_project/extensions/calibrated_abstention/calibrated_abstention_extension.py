@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import csv
-import json
-import os
 from typing import Sequence
 
 import numpy as np
@@ -130,8 +127,14 @@ class CalibratedAbstentionExtension:
         unanswerable_f1 = CalibratedAbstentionExtension._f1(true_negative, false_negative, false_positive)
         answered_positives = [answer for score, answer in zip(scores, answered) if score.answerable]
         answered_negatives = [answer for score, answer in zip(scores, answered) if not score.answerable]
-        exact_matches = [score.exact_match if answer else 0.0 for score, answer in zip(scores, answered)]
-        token_f1s = [score.token_f1 if answer else 0.0 for score, answer in zip(scores, answered)]
+        exact_matches = [
+            score.exact_match if answer else float(not score.answerable)
+            for score, answer in zip(scores, answered)
+        ]
+        token_f1s = [
+            score.token_f1 if answer else float(not score.answerable)
+            for score, answer in zip(scores, answered)
+        ]
 
         return Metrics(
             count=len(scores),
@@ -306,50 +309,3 @@ class CalibratedAbstentionExtension:
             comparison=self._bootstrap(scores, baseline, decisions["B_per_language_thresholds"]),
             decisions=decisions,
         )
-
-    def save(self, result: ExtensionResult, directory: str) -> None:
-        """
-        Writes the reportable results as CSV and JSON files.
-
-        Args:
-            result (ExtensionResult): Result returned by evaluate.
-            directory (str): Destination directory, created when missing.
-
-        Raises:
-            ValueError: If the result has no metrics.
-            OSError: If the directory cannot be created or written.
-        """
-        if not result.metrics:
-            raise ValueError("result must contain metrics.")
-
-        os.makedirs(directory, exist_ok=True)
-
-        with open(os.path.join(directory, "metrics.csv"), "w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["rule"] + list(next(iter(result.metrics.values())).to_dict()))
-            writer.writeheader()
-
-            for rule, metrics in result.metrics.items():
-                writer.writerow({"rule": rule, **metrics.to_dict()})
-
-        with open(os.path.join(directory, "metrics_by_language.csv"), "w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["rule", "language"]
-                                    + list(next(iter(next(iter(result.metrics_by_language.values())).values())).to_dict()))
-            writer.writeheader()
-
-            for rule, per_language in result.metrics_by_language.items():
-                for language, metrics in per_language.items():
-                    writer.writerow({"rule": rule, "language": language, **metrics.to_dict()})
-
-        with open(os.path.join(directory, "thresholds.json"), "w", encoding="utf-8") as handle:
-            json.dump({rule: thresholds.to_dict() for rule, thresholds in result.thresholds.items()},
-                      handle, indent=2)
-
-        with open(os.path.join(directory, "calibration.json"), "w", encoding="utf-8") as handle:
-            json.dump(result.calibration.to_dict(), handle, indent=2)
-
-        with open(os.path.join(directory, "transitions.json"), "w", encoding="utf-8") as handle:
-            json.dump({rule: transitions.to_dict() for rule, transitions in result.transitions.items()},
-                      handle, indent=2)
-
-        with open(os.path.join(directory, "summary.json"), "w", encoding="utf-8") as handle:
-            json.dump(result.to_dict(), handle, indent=2)

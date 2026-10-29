@@ -31,6 +31,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/results/week_40_41/validation_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>

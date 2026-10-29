@@ -4,8 +4,7 @@ from typing import Sequence
 
 import numpy as np
 
-from ..example_score import ExampleScore
-from ..thresholds import Thresholds
+from ..types import ExampleScore, Thresholds
 from .abstention_rule import AbstentionRule
 
 

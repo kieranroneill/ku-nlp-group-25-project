@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from ..example_score import ExampleScore
-from ..thresholds import Thresholds
+from ..types import ExampleScore, Thresholds
 from .abstention_rule import AbstentionRule
 
 
