@@ -1,0 +1,2 @@
+model,n,overall_em,overall_token_f1,answerable_em,answerable_token_f1,unanswerable_em,unanswerable_token_f1,answerability_macro_f1,fully_correct_pairs
+W37_BIO,10,0.4,0.4,0.8,0.8,0.0,0.0,0.3333333333333333,0
