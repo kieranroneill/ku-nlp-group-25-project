@@ -4,3 +4,13 @@ pair_id,lang,n_answered,pair_correct,n_records
 ac3f5ff9-3845-4a3d-abf0-fc4b8e27ec6f,ko,0,False,2
 dad3d291-4ff5-4aa7-9593-b7a1f51ae5fb,ar,0,False,2
 f4debdad-3d4f-4df3-9c44-74efc16e43f7,ko,0,False,2
+pair_01,ar,1,True,2
+pair_02,ko,0,False,2
+pair_03,ko,0,False,2
+pair_04,ar,0,False,2
+pair_05,te,0,False,2
+pokémon_country,zh,0,False,2
+pokémon_publisher,zh,0,False,2
+pokémon_species,zh,0,False,2
+pokémon_study,zh,0,False,2
+pokémon_year,zh,0,False,2
