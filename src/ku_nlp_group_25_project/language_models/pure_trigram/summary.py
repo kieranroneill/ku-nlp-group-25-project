@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .question_score import QuestionScore
+
 @dataclass(frozen=True)
 class Summary:
     minimum_count: int
     perplexity: float
-    question_scores: int
+    question_scores: list[QuestionScore]
     smoothing: float
     token_count: int
     unknown_rate: float

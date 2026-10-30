@@ -1,0 +1,122 @@
+[
+  {
+    "id": "challenge_01_a",
+    "pair_id": "pair_01",
+    "created_by": "Sultan",
+    "question": "في أي عام هبطت مهمة أبولو 11 على القمر؟",
+    "context": "The Apollo 11 spacecraft landed on the Moon in 1969. Neil Armstrong and Buzz Aldrin explored the lunar surface, while Michael Collins remained in lunar orbit.",
+    "lang": "ar",
+    "answerable": true,
+    "answer_start": 47,
+    "answer": "1969",
+    "source_url": "https://www.nasa.gov/specials/apollo50th/missions.html"
+  },
+  {
+    "id": "challenge_01_u",
+    "pair_id": "pair_01",
+    "created_by": "Sultan",
+    "question": "في أي عام هبطت مهمة أبولو 12 على القمر؟",
+    "context": "The Apollo 11 spacecraft landed on the Moon in 1969. Neil Armstrong and Buzz Aldrin explored the lunar surface, while Michael Collins remained in lunar orbit.",
+    "lang": "ar",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://www.nasa.gov/specials/apollo50th/missions.html"
+  },
+  {
+    "id": "challenge_02_a",
+    "pair_id": "pair_02",
+    "created_by": "Sultan",
+    "question": "베를린 장벽은 몇 년에 건설되었나요?",
+    "context": "The Berlin Wall was built in 1961. It separated East Berlin from West Berlin, and guarded crossing points restricted movement through the city.",
+    "lang": "ko",
+    "answerable": true,
+    "answer_start": 29,
+    "answer": "1961",
+    "source_url": "https://www.stiftung-berliner-mauer.de/en/topics/berlin-wall"
+  },
+  {
+    "id": "challenge_02_u",
+    "pair_id": "pair_02",
+    "created_by": "Sultan",
+    "question": "베를린 장벽은 몇 년에 무너졌나요?",
+    "context": "The Berlin Wall was built in 1961. It separated East Berlin from West Berlin, and guarded crossing points restricted movement through the city.",
+    "lang": "ko",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://www.stiftung-berliner-mauer.de/en/topics/berlin-wall"
+  },
+  {
+    "id": "challenge_03_a",
+    "pair_id": "pair_03",
+    "created_by": "Sultan",
+    "question": "에펠탑은 몇 년에 완공되었나요?",
+    "context": "The Eiffel Tower was completed in 1889 for the World's Fair in Paris. Work started in 1887, and thousands of metal components were assembled to construct it.",
+    "lang": "ko",
+    "answerable": true,
+    "answer_start": 34,
+    "answer": "1889",
+    "source_url": "https://www.toureiffel.paris/en/the-monument/history"
+  },
+  {
+    "id": "challenge_03_u",
+    "pair_id": "pair_03",
+    "created_by": "Sultan",
+    "question": "에펠탑은 몇 년에 다시 칠해졌나요?",
+    "context": "The Eiffel Tower was completed in 1889 for the World's Fair in Paris. Work started in 1887, and thousands of metal components were assembled to construct it.",
+    "lang": "ko",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://www.toureiffel.paris/en/the-monument/history"
+  },
+  {
+    "id": "challenge_04_a",
+    "pair_id": "pair_04",
+    "created_by": "Sultan",
+    "question": "في أي عام حصلت ماري كوري على جائزة نوبل في الفيزياء؟",
+    "context": "Marie Curie received the Nobel Prize in Physics in 1903. She later received the Nobel Prize in Chemistry in 1911 for her work on radioactive substances.",
+    "lang": "ar",
+    "answerable": true,
+    "answer_start": 51,
+    "answer": "1903",
+    "source_url": "https://www.nobelprize.org/prizes/physics/1903/marie-curie/facts/"
+  },
+  {
+    "id": "challenge_04_u",
+    "pair_id": "pair_04",
+    "created_by": "Sultan",
+    "question": "في أي عام حصلت ماري كوري على جائزة نوبل في الأدب؟",
+    "context": "Marie Curie received the Nobel Prize in Physics in 1903. She later received the Nobel Prize in Chemistry in 1911 for her work on radioactive substances.",
+    "lang": "ar",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://www.nobelprize.org/prizes/physics/1903/marie-curie/facts/"
+  },
+  {
+    "id": "challenge_05_a",
+    "pair_id": "pair_05",
+    "created_by": "Sultan",
+    "question": "మొదటి ఆధునిక ఒలింపిక్ క్రీడలు ఏ నగరంలో జరిగాయి?",
+    "context": "The first modern Olympic Games took place in Athens in 1896. The Panathenaic Stadium hosted several contests, and athletes from different countries travelled to Greece.",
+    "lang": "te",
+    "answerable": true,
+    "answer_start": 45,
+    "answer": "Athens",
+    "source_url": "https://www.olympics.com/ioc/news/athens-1896-the-revival-of-the-olympic-games"
+  },
+  {
+    "id": "challenge_05_u",
+    "pair_id": "pair_05",
+    "created_by": "Sultan",
+    "question": "రెండవ ఆధునిక ఒలింపిక్ క్రీడలు ఏ నగరంలో జరిగాయి?",
+    "context": "The first modern Olympic Games took place in Athens in 1896. The Panathenaic Stadium hosted several contests, and athletes from different countries travelled to Greece.",
+    "lang": "te",
+    "answerable": false,
+    "answer_start": -1,
+    "answer": "",
+    "source_url": "https://www.olympics.com/ioc/news/athens-1896-the-revival-of-the-olympic-games"
+  }
+]
