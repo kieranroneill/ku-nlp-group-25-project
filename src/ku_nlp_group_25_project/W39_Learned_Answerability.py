@@ -41,7 +41,7 @@ def load_data():
     train = dataset["train"].to_pandas()[columns].copy()
     validation = dataset["validation"].to_pandas()[columns].copy()
 
-    # 保留样本编号，方便之后定位错误样本。
+    # Assign sample IDs so that errors can be located later.
     train["example_id"] = train.index
     validation["example_id"] = validation.index
 
@@ -79,8 +79,8 @@ def extract_numeric_features(frame):
     return np.array(rows, dtype=float)
 
 def build_model1_features(train, validation):
-    # question 和 context 分别建立词表、计算 TF-IDF。
-    # min_df=2：词至少出现在两篇 training 文档中才保留。
+    # Build separate vocabularies and TF-IDF representations for questions and contexts.
+    # min_df=2 retains tokens appearing in at least two training documents.
 
     question_vectorizer = TfidfVectorizer(
         tokenizer=tokenize,
@@ -96,9 +96,9 @@ def build_model1_features(train, validation):
         min_df=2,
     )
 
-    # 只在 training data 上学习词表（fit）和 IDF（transform）。
-    # 例：training 有 6,335 条 question，训练后保留了1,000个词，结果形状为：(6335, 1000)
-    # 表示：每行是一条question，每列对应词表中一个token，单元格value是该token在这条 question 中的 TF-IDF 权重
+    # Fit both the vocabulary and IDF weights on training data only, then transform the texts.
+    # Example: 6,335 questions and a hypothetical 1,000-token vocabulary produce a (6335, 1000) matrix.
+    # Each row is a question; each column is a vocabulary token; each value is its TF-IDF weight.
     train_question_features = question_vectorizer.fit_transform(
         train["question"]
     )
@@ -106,7 +106,7 @@ def build_model1_features(train, validation):
         train["context"]
     )
 
-    # validation 使用 training 已经学到的规则，因此仅transform，不用再次fit
+    # Transform validation data using the fitted training vocabulary and IDF weights; do not refit.
     validation_question_features = question_vectorizer.transform(
         validation["question"]
     )
@@ -114,19 +114,19 @@ def build_model1_features(train, validation):
         validation["context"]
     )
 
-    # 得到 numeric features
+    # Compute the numerical features.
     train_numeric = extract_numeric_features(train)
     validation_numeric = extract_numeric_features(validation)
 
-    # 不同numeric features的尺度可能差别很大，比如context_length可能是几百，而ratio在0-1，因此需要标准化数值特征。
-    # 这是训练 Logistic Regression 时常见的预处理，主要有两个作用：1. 有利于优化算法收敛； 2. 让正则化更合理
-    # 和TF-IDF一样，均值、标准差也只从 training 学习。
+    # Standardise numerical features: context lengths may be in the hundreds, while ratios range from 0 to 1.
+    # For logistic regression, scaling helps optimisation converge and makes regularisation less sensitive to feature units.
+    # As with TF-IDF, learn the means and standard deviations from training data only.
     scaler = StandardScaler()
     train_numeric = scaler.fit_transform(train_numeric)
     validation_numeric = scaler.transform(validation_numeric)
 
-    # 把三列数据拼成一列：[question TF-IDF | context TF-IDF | numeric features]
-    # TF-IDF 中有大量 0，已经是稀疏矩阵。把train_numeric从普通Numpy数据转为稀疏矩阵，相同格式方便拼接。
+    # Concatenate three feature blocks column-wise: [question TF-IDF | context TF-IDF | numerical features].
+    # TF-IDF is sparse; convert the dense NumPy numerical block to sparse format before concatenation.
     X_train = hstack([
         train_question_features,
         train_context_features,
@@ -139,7 +139,7 @@ def build_model1_features(train, validation):
         csr_matrix(validation_numeric),
     ], format="csr")
 
-    # 特征名顺序与拼接后的列保持顺序一致，方便之后解释每个系数对应的特征
+    # Keep feature names in the same order as the concatenated columns to interpret the coefficients correctly.
     feature_names = []
 
     for token in question_vectorizer.get_feature_names_out():
@@ -150,7 +150,7 @@ def build_model1_features(train, validation):
 
     feature_names.extend(NUMERIC_FEATURE_NAMES)
 
-    # 保存已拟合的预处理器，之后对新数据预测时可直接调用。
+    # Keep the fitted preprocessors together so they can be reused for predictions on new data.
     preprocessors = {
         "question_vectorizer": question_vectorizer,
         "context_vectorizer": context_vectorizer,
@@ -163,9 +163,9 @@ def build_model1_features(train, validation):
 
 def train_model1(X_train, y_train):
     model = LogisticRegression(
-    # C 是正则化强度的倒数，之后可通过validation 比较不同设置
-    # class_weight="balanced"：training 中 unanswerable 较少，因此增加少数类样本的权重。也可以在 validation数据上对比 =None
-    # solver 指用什么优化算法求解模型的系数和截距。
+    # C is the inverse regularisation strength; alternative values can be compared on validation data.
+    # Balanced class weights give the minority unanswerable class greater weight; class_weight=None is a possible comparison.
+    # The solver selects the optimisation algorithm used to estimate coefficients and the intercept.
         C=1.0,
         class_weight="balanced",
         solver="lbfgs",
@@ -176,9 +176,9 @@ def train_model1(X_train, y_train):
     return model
 
 # 4. Shared evaluation for both models (！！！)
-# 包含：整体评估、分语言评估和预测表整理函数
+# Includes overall evaluation, evaluation by language, and prediction-table construction.
 
-# 准备对模型预测评价指标
+# Compute classification metrics from the model's predictions.
 def print_metrics(y_true, y_pred, title):
     print(f"\n===== {title} =====")
 
@@ -194,7 +194,7 @@ def print_metrics(y_true, y_pred, title):
     print(f"Macro-F1: {macro_f1:.4f}")
 
     # 0 = unanswerable，1 = answerable。
-    # 输出两个类别分别对应的 precision / recall / F1。
+    # Report precision, recall, and F1 separately for both classes.
     print(classification_report(
         y_true,
         y_pred,
@@ -204,7 +204,7 @@ def print_metrics(y_true, y_pred, title):
         zero_division=0,
     ))
 
-# 比较真实标签和模型预测标签：先评估完整validation，再分三种语言单独评估。
+# Compare predicted and gold labels on the full validation set, then separately for each language.
 def evaluate_classifier(validation, predictions, model_name):
     y_true = validation["answerable"].astype(int).to_numpy()
     predictions = np.asarray(predictions)
@@ -224,9 +224,9 @@ def evaluate_classifier(validation, predictions, model_name):
             f"{model_name}: Validation ({lang})",
         )
 
-# 关键函数！！！整理模型预测结果，并给结果结果加各种标签，用于后续错误分析。
+# Build a prediction table with labels and diagnostic fields for later error analysis.
 def make_prediction_table(validation, predictions, probabilities):
-    # probabilities 是模型给出的 P(answerable)。
+    # probabilities contains the model's P(answerable).
     results = validation[
         ["example_id", "lang", "question", "context"]
     ].copy()
@@ -237,10 +237,10 @@ def make_prediction_table(validation, predictions, probabilities):
     results["prediction"] = predictions
     results["p_answerable"] = probabilities
 
-    # confidence 表示模型给“预测类别”的概率，不是经过额外校准的正确率。
-    # np.where(条件, 条件成立时的值, 条件不成立时的值)：如果预测为answerable，使用P(answerable)，否则使用P(unanswerable)
-    # 例：P(answerable) = 0.90 预测类别：1（answerable） confidence：0.90
-    #     P(answerable) = 0.20 预测类别：0（unanswerable） confidence：1-0.20 = 0.80
+    # Confidence is the probability assigned to the predicted class, not a separately calibrated correctness rate.
+    # np.where(condition, true_value, false_value) selects P(answerable) for class 1, otherwise P(unanswerable).
+    # Example: P(answerable)=0.90 gives predicted class 1 and confidence 0.90.
+    #          P(answerable)=0.20 gives predicted class 0 and confidence 1-0.20=0.80.
     results["confidence"] = np.where(
         predictions == 1,
         probabilities,
@@ -259,11 +259,11 @@ def inspect_coefficients(model, feature_names, top_n=10):
     coefficients = pd.DataFrame({
         "feature": feature_names,
         # P(answerable)=sigma(b+w_1x_1+...+w_dx_d)
-        # model_coef_：取出模型学到的特征系数，也就是这些 w，一个形状为 (1, 特征数量) 的二维数组，[0] 取出其中唯一的一行。
+        # model.coef_ has shape (1, n_features); [0] extracts the single row of learned weights.
         "coefficient": model.coef_[0],
     })
 
-    # 分别取出系数最大、最小的几个特征。正系数推动预测 answerable；负系数推动预测 unanswerable。
+    # Inspect the largest and smallest coefficients: positive weights favour answerable, negative weights favour unanswerable.
     print("\n===== Features Toward Answerable =====")
     print(
         coefficients.nlargest(top_n, "coefficient")
@@ -276,8 +276,8 @@ def inspect_coefficients(model, feature_names, top_n=10):
         .to_string(index=False)
     )
 
-    # 最大、最小系数，是从全部三类特征里选出的。
-    # 额外筛出4个之前手动构造的数值特征（两个长度、共有 token 数、重合比例），确保即使它们即使没进入前10，也打印出来方便检查。
+    # The coefficient rankings include all three feature blocks.
+    # Also print the four manual features (two lengths, shared-token count, and overlap ratio), even if absent from the top ten.
     print("\n===== Numeric Feature Coefficients =====")
     print(
         coefficients[
@@ -299,34 +299,34 @@ MODEL2_CONFIG = {
     "epochs": 10,
     "learning_rate": 0.001,
 }
-# 0和1只是编号，不代表数值大小或重要程度，普通token从2开始
-PAD_ID = 0 # <PAD> 的编号是 0，用于补齐同一 batch 中长短不一的序列
-UNK_ID = 1 # <UNK> 的编号是 1，代表不在词表中的 token
-# 创建一个用于接收结果的文件夹
-# 保存：model1_predictions.csv、model2_predictions.csv、model2_training_history.csv、model2_bilstm.pt、model_comparison.csv
+# IDs 0 and 1 are identifiers, not magnitudes or importance scores; ordinary token IDs start at 2.
+PAD_ID = 0 # <PAD> has ID 0 and pads sequences of different lengths within a batch.
+UNK_ID = 1 # <UNK> has ID 1 and represents tokens outside the vocabulary.
+# Create the output directory.
+# Save model1_predictions.csv, model2_predictions.csv, model2_training_history.csv, model2_bilstm.pt, and model_comparison.csv.
 OUTPUT_DIR = Path(__file__).resolve().parent / "w39_outputs"
 
 
 def set_seed(seed):
-    # Model2的随机性共有三处：
-    # 1 参数初始化：embedding、LSTM 和分类层的参数一开始随机生成。
-    # 2 训练数据顺序：shuffle=True 会打乱每轮训练的样本顺序。
-    # 3 Dropout：训练时随机将部分激活值置零。
-    # 固定seed的目的是：尽量在重复运行时，保证这些随机过程按相同的顺序发生
+    # Three main sources of randomness in Model 2:
+    # 1. Parameter initialisation: embedding, LSTM, and classifier parameters start from random values.
+    # 2. Training order: shuffle=True shuffles examples for each epoch.
+    # 3. Dropout: randomly sets some activations to zero during training.
+    # Fix the seed to make these random processes repeatable as far as possible.
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    # 要求 cuDNN 使用确定性的算法，帮助相同输入和设置得到可重复的结果。
+    # Request deterministic cuDNN algorithms to improve reproducibility for the same inputs and settings.
     torch.backends.cudnn.deterministic = True
-    # 关闭运行时的算法测速选优，避免因为测速波动而在不同运行中选择不同算法。
+    # Disable runtime benchmarking so timing fluctuations do not change the selected algorithm between runs.
     torch.backends.cudnn.benchmark = False
 
 # 7. Model 2: vocabulary, Dataset and batches
 def build_vocabulary(train, min_freq):
-    # 只统计 training 的 question 和 context。
-    # 两种文本共享一个词表；复用 Model 1 的 lower().split()。
-    # min_freq 指 token 总出现次数。
+    # Count tokens only in training questions and contexts.
+    # Both text types share one vocabulary and reuse Model 1's lower().split() tokenisation.
+    # min_freq refers to total token frequency, not document frequency.
     counts = Counter()
     for column in ["question", "context"]:
         for text in train[column]:
@@ -340,12 +340,12 @@ def build_vocabulary(train, min_freq):
 
 
 class AnswerabilityDataset(Dataset):
-    # 定义一个类，对应 ClassificationDatasetReader 的结构
-    # 可以理解为：一个存放处理后样本的容器，并提供“有多少条”和“取第几条”的方法，供之后的 DataLoader 使用。
-    # 把 pandas 表格中的每条样本，转换为 PyTorch 后续训练可以读取的格式。
-    # 每行数据最终变成：(question_token_ids, context_token_ids, answerable_label)
+    # Define a dataset class following the structure of ClassificationDatasetReader.
+    # It stores processed examples and provides length and indexed access for the DataLoader.
+    # Convert each pandas row into the format required for PyTorch training.
+    # Each example becomes (question_token_ids, context_token_ids, answerable_label).
     def __init__(self, frame, vocabulary):
-    # 处理并保存全部样本
+    # Process and store all examples.
         self.examples = []
         for _, row in frame.iterrows():
             question_ids = []
@@ -363,16 +363,16 @@ class AnswerabilityDataset(Dataset):
             ))
 
     def __len__(self):
-    # 告诉程序有多少条样本
+    # Return the number of examples.
         return len(self.examples)
 
     def __getitem__(self, index):
-    # 取出指定位置的样本
+    # Return the example at the requested index.
         return self.examples[index]
 
 
 def collate_model2_batch(examples):
-    # [Lab 4 adapted] 对应 collate_batch_transformer 的 batch padding。
+    # [Lab 4 adapted] Batch padding follows the role of collate_batch_transformer.
     questions = []
     contexts = []
     labels = []
@@ -395,9 +395,9 @@ def collate_model2_batch(examples):
 
 # 8. Model 2: recurrent neural classifier
 class RecurrentAnswerabilityClassifier(nn.Module):
-    # 建立RNN模型：从头训练的 embedding + 两个独立的 BiLSTM。
+    # Build a recurrent classifier with a trainable embedding and two independent BiLSTM encoders.
     def __init__(self, vocab_size, embedding_dim, hidden_dim, dropout):
-        # 先用super()建立模型的基础管理结构，在用self分别登记 embedding 层、 question 编码器、 context 编码器和分类网络
+        # super() initialises nn.Module; assigning layers to self registers the embedding, encoders, and classifier.
         super().__init__()
         self.embedding = nn.Embedding(
             vocab_size, embedding_dim, padding_idx=PAD_ID
@@ -408,7 +408,7 @@ class RecurrentAnswerabilityClassifier(nn.Module):
         self.context_lstm = nn.LSTM(
             embedding_dim, hidden_dim, batch_first=True, bidirectional=True
         )
-        # 每个双向 LSTM 的表示长度为 2 * hidden_dim，两段文本拼接后为 4 * hidden_dim。
+        # Each BiLSTM produces 2 * hidden_dim features; concatenating question and context gives 4 * hidden_dim.
         self.classifier = nn.Sequential(
             nn.Linear(4 * hidden_dim, hidden_dim),
             nn.ReLU(),
@@ -417,7 +417,7 @@ class RecurrentAnswerabilityClassifier(nn.Module):
         )
 
     def encode(self, token_ids, lengths, lstm):
-        # 把一段文本变成一个向量
+        # Encode a text sequence as one vector.
         # token_ids: [batch_size, sequence_length]
         # embedded:  [batch_size, sequence_length, embedding_dim]
         embedded = self.embedding(token_ids)
@@ -425,11 +425,11 @@ class RecurrentAnswerabilityClassifier(nn.Module):
             embedded, lengths, batch_first=True, enforce_sorted=False
         )
         _, (hidden, _) = lstm(packed)
-        # 单层双向 LSTM: hidden[0] 为正向最终状态，hidden[1] 为反向。
+        # For a single-layer BiLSTM, hidden[0] is the final forward state and hidden[1] the final backward state.
         return torch.cat([hidden[0], hidden[1]], dim=1)
 
     def forward(self, question_ids, context_ids, question_lengths, context_lengths):
-        # 通过调用两次encode，编码问题和上下文，组合整个模型的计算流程
+        # Call encode twice to combine question and context encoding in the forward pass.
         question_vector = self.encode(
             question_ids, question_lengths, self.question_lstm
         )
@@ -437,8 +437,8 @@ class RecurrentAnswerabilityClassifier(nn.Module):
             context_ids, context_lengths, self.context_lstm
         )
         combined = torch.cat([question_vector, context_vector], dim=1)
-        # 输出两个未归一化分数 logits，对应 [unanswerable, answerable]。
-        # CrossEntropyLoss 内部处理 log-softmax，训练前不用手动 softmax。
+        # Output two unnormalised logits, ordered as [unanswerable, answerable].
+        # CrossEntropyLoss applies log-softmax internally; pass logits without a separate softmax.
         return self.classifier(combined)
 
 
@@ -455,21 +455,21 @@ def predict_model2(model, loader, device, criterion):
             )
             losses = criterion(logits, labels.to(device))
             total_loss += losses.sum().item()
-            # 第 1 列对应 answerable，与 Model 1 的概率列一致。
+            # Column index 1 gives P(answerable), matching Model 1's probability convention.
             batch_probabilities = torch.softmax(logits, dim=1)[:, 1]
             probabilities.extend(batch_probabilities.cpu().tolist())
     return np.asarray(probabilities), total_loss / len(loader.dataset)
 
 
 def train_model2(train, validation, config):
-    # 1. 准备数据和模型
+    # 1. Prepare the data and model.
     set_seed(config["seed"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vocabulary = build_vocabulary(train, config["min_freq"])
     train_dataset = AnswerabilityDataset(train, vocabulary)
     validation_dataset = AnswerabilityDataset(validation, vocabulary)
 
-    # training 打乱顺序，validation 不打乱，因为validation 顺序必须与原 DataFrame 一致，才可复用 prediction table。
+    # Shuffle training data only; keep validation order aligned with the original DataFrame for the prediction table.
     train_loader = DataLoader(
         train_dataset, batch_size=config["batch_size"], shuffle=True,
         collate_fn=collate_model2_batch, num_workers=0,
@@ -486,10 +486,10 @@ def train_model2(train, validation, config):
     y_train = train["answerable"].astype(int).to_numpy()
     class_counts = np.bincount(y_train, minlength=2)
     weights = len(y_train) / (2.0 * class_counts)
-    # 2. 设置如何”学习“
-    # criterion：损失函数，衡量预测与真实标签的差距。
-    # optimizer：优化器，根据梯度更新模型参数
-    # 然后准备记录最佳分数、最佳轮次、最佳参数，以及每轮训练结果的变量。
+    # 2. Set up the training objective and optimiser.
+    # criterion measures the loss between predictions and gold labels.
+    # optimizer updates model parameters using their gradients.
+    # Initialise tracking for the best score, epoch, parameters, and per-epoch history.
     criterion = nn.CrossEntropyLoss(
         weight=torch.tensor(weights, dtype=torch.float32, device=device),
         reduction="none",
@@ -507,43 +507,43 @@ def train_model2(train, validation, config):
     print(f"Class weights [unanswerable, answerable]: {weights}")
     print(f"Configuration: {config}")
 
-    # 3. 真正进行训练的两层循环
-    # 外层：训练多少轮  内层：这一轮里，逐个batch处理，遍历整个training set
+    # 3. Train using nested epoch and batch loops.
+    # The outer loop iterates over epochs; the inner loop processes every training batch once per epoch.
     for epoch in range(1, config["epochs"] + 1):
         model.train()
         total_train_loss = 0.0
         for questions, contexts, q_lengths, c_lengths, labels in train_loader:
-            # 清除上一次的梯度，避免意外累加
+            # Clear previous gradients to prevent unintended accumulation.
             optimizer.zero_grad()
-            # 前向计算，得到两个类别分数
+            # Run the forward pass to obtain the two class logits.
             logits = model(
                 questions.to(device), contexts.to(device), q_lengths, c_lengths
             )
-            # 计算每条样本的加权损失
+            # Compute the class-weighted loss for each example.
             losses = criterion(logits, labels.to(device))
-            # 取 batch 平均损失，用于反向传播
+            # Average the batch losses for backpropagation.
             loss = losses.mean()
-            # 计算各个参数的梯度
+            # Backpropagate to compute parameter gradients.
             loss.backward()
-            # 限制梯度范数以稳定 RNN 训练。
+            # Clip the gradient norm to stabilise recurrent training.
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            # 根据梯度，真正更新模型参数
+            # Update model parameters using the gradients.
             optimizer.step()
             total_train_loss += losses.detach().sum().item()
 
-        # 4. 每轮结束后验证、记录并保留最佳参数
+        # 4. Validate after each epoch, record the results, and retain the best parameters.
         probabilities, validation_loss = predict_model2(
             model, validation_loader, device, criterion
         )
-        # 用阈值得到类别
+        # Apply the threshold to obtain predicted classes.
         predictions = (probabilities >= 0.5).astype(int)
-        # 计算 m-F1 等指标
+        # Compute macro-F1 and the other metrics.
         macro_f1 = f1_score(
             y_validation, predictions, labels=[0, 1],
             average="macro", zero_division=0,
         )
         train_loss = total_train_loss / len(train_dataset)
-        # 将本轮的 training loss、validation loss、macro-F1 加入 history
+        # Record training loss, validation loss, and macro-F1 in the history.
         history.append({
             "epoch": epoch, "train_loss": train_loss,
             "validation_loss": validation_loss, "validation_macro_f1": macro_f1,
@@ -553,23 +553,23 @@ def train_model2(train, validation, config):
             f"Train loss: {train_loss:.4f} | Validation loss: {validation_loss:.4f} | "
             f"Validation macro-F1: {macro_f1:.4f}"
         )
-        # 如果 macro-F1 超过此前最高分，保存当前参数的独立副本。
+        # If macro-F1 improves, retain an independent copy of the current parameters.
         if macro_f1 > best_macro_f1:
             best_macro_f1 = macro_f1
             best_epoch = epoch
-            # clone 保存此时的独立副本，后续训练不会把它覆盖。
+            # clone creates a separate copy that subsequent training cannot overwrite.
             best_state = {}
             for name, value in model.state_dict().items():
                 best_state[name] = value.detach().cpu().clone()
 
-    # 训练结束，恢复最佳模型并保存
+    # After training, restore and save the best model.
     model.load_state_dict(best_state)
     probabilities, _ = predict_model2(model, validation_loader, device, criterion)
     print(f"Best epoch: {best_epoch}; validation macro-F1: {best_macro_f1:.4f}")
-    # 将模型恢复成 validation macro-F1 最高那一轮的参数，再生成一次对应的 validation 概率。
+    # Reload the parameters with the highest validation macro-F1, then recompute their validation probabilities.
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    # 保存：.pt：最佳模型参数、词表和配置等
-    #       .csv：每轮训练记录
+    # Save the best parameters, vocabulary, and configuration in a .pt file.
+    # Save the per-epoch training history as CSV.
     torch.save({
         "model_state_dict": best_state, "vocabulary": vocabulary,
         "config": config, "best_epoch": best_epoch,
@@ -579,7 +579,7 @@ def train_model2(train, validation, config):
     }, OUTPUT_DIR / "model2_bilstm.pt")
     history = pd.DataFrame(history)
     history.to_csv(OUTPUT_DIR / "model2_training_history.csv", index=False)
-    # main() 可以拿最佳模型的预测，继续调用之前写好的整体评估、分语言评估和预测表整理函数。
+    # main() reuses the shared evaluation and prediction-table functions with the best model's predictions.
     return model, vocabulary, probabilities, history
 
 
@@ -620,7 +620,7 @@ def main():
         train, validation, MODEL2_CONFIG
     )
     predictions2 = (probabilities2 >= 0.5).astype(int)
-    # 直接复用你已有的整体/分语言 evaluation 和错误分析表。
+    # Reuse the existing overall/per-language evaluation and error-analysis table.
     evaluate_classifier(validation, predictions2, "Model 2: BiLSTM")
     table2 = make_prediction_table(validation, predictions2, probabilities2)
     table2.to_csv(OUTPUT_DIR / "model2_predictions.csv", index=False, encoding="utf-8-sig")

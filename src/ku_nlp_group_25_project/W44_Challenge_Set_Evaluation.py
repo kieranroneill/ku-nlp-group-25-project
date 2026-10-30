@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 
 ROOT = Path(__file__).resolve().parent
 CHALLENGE_PATH = ROOT / "challenge.json"
-W39_SCRIPT = ROOT / "W39_Learned_Answerability_final.py"
-QA_SCRIPT = ROOT / "W40-41_Integrated_Multilingual_QA_final.py"
+W39_SCRIPT = ROOT / "W39_Learned_Answerability.py"
+QA_SCRIPT = ROOT / "W40-41_Integrated_Multilingual_QA.py"
 BILSTM_CHECKPOINT = ROOT / "w39_outputs" / "model2_bilstm.pt"
 QA_CHECKPOINT = ROOT / "w40_41_outputs" / "seed44_epochs6" / "best_model"
 OUTPUT_DIR = ROOT / "w44_challenge_results"
