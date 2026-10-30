@@ -217,7 +217,7 @@ class PureTrigramLanguageModel:
         return Summary(
             minimum_count=self._minimum_count,
             perplexity=math.exp(negative_log_likelihoods / predictions),
-            question_scores=len(scores),
+            question_scores=scores,
             smoothing=self._smoothing,
             token_count=token_count,
             unknown_rate=unknown_token_count / token_count,
