@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
-DEFAULT_DATA = "data/challenge_sets/challenge.json"
+DEFAULT_DATA = "data/challenge.json"
 DEFAULT_OUTPUT = "outputs/w43_w44_challenge_predictions.csv"
 DEFAULT_SUMMARY = "outputs/w43_w44_challenge_metrics.csv"
 DEFAULT_W37 = "models/w37_xlmr_bio_multilingual"
