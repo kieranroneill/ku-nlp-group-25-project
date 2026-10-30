@@ -20,18 +20,20 @@ class Classifier:
      Deterministic lexical-overlap classifier for answerability prediction.
 
      The classifier predicts that a question is answerable when the question and context share at least
-     `min_shared_tokens` distinct tokens after Unicode normalization, optional case folding, and regex-based
-     tokenization.
+     `min_shared_tokens` distinct tokens after Unicode normalisation, optional case folding, and regex-based
+     tokenisation.
 
      Attributes:
+         _casefolding (bool): Whether Unicode case folding is applied after normalisation.
+         _languages (list[str]): A list of accepted languages.
          _min_shared_tokens (int): Minimum number of distinct tokens shared by the question and context required to
             predict answerable.
-         _normalization_form (NormalizationForm): Unicode normalization form applied before tokenization.
-         _casefolding (bool): Whether Unicode case folding is applied after normalization.
+         _normalisation_form (NormalizationForm): Unicode normalisation form applied before tokenisation.
      """
-    _min_shared_tokens: int
-    _normalization_form: NormalizationForm
     _casefolding: bool
+    _languages: list[str]
+    _min_shared_tokens: int
+    _normalisation_form: NormalizationForm
 
     ###
     # constructors
@@ -40,17 +42,19 @@ class Classifier:
     def __init__(
         self,
         casefolding: bool = True,
+        languages: list[str] = LANGUAGES,
         min_shared_tokens: int = 1,
-        normalization_form: NormalizationForm = "NFC",
+        normalisation_form: NormalizationForm = "NFC",
     ) -> None:
         """
-        Initializes a deterministic lexical-overlap classifier.
+        Initialises a deterministic lexical-overlap classifier.
 
         Args:
-            casefolding (bool): Whether to apply Unicode case folding after normalization. Defaults to True.
+            casefolding (bool): Whether to apply Unicode case folding after normalisation. Defaults to True.
+            languages (list[str]): A list of accepted languages. Defaults to "Arabic", "Korean" and "Telugu".
             min_shared_tokens (int): Minimum number of distinct tokens that must occur in both the question and context
                 for the classifier to predict. Must be at least 1. Defaults to 1.
-            normalization_form (NormalizationForm): Unicode normalization form. Defaults to `"NFC"`.
+            normalisation_form (NormalizationForm): Unicode normalisation form. Defaults to `"NFC"`.
 
         Raises:
             ValueError: If `min_shared_tokens` is less than 1.
@@ -60,61 +64,62 @@ class Classifier:
                 "min_shared_tokens must be at least 1."
             )
 
-        self._min_shared_tokens = min_shared_tokens
         self._casefolding = casefolding
-        self._normalization_form = normalization_form
+        self._languages = languages
+        self._min_shared_tokens = min_shared_tokens
+        self._normalisation_form = normalisation_form
 
     ###
     # private functions
     ###
 
-    def _normalize(self, text: str) -> str:
+    def _normalise(self, text: str) -> str:
         """
-        Applies the classifier's fixed Unicode normalization policy.
+        Applies the classifier's fixed Unicode normalisation policy.
 
         Args:
-            text (str): Input text to normalize.
+            text (str): Input text to normalise.
 
         Returns:
-            str: The normalized text, with case folding applied if case folding is enabled.
+            str: The normalised text, with case folding applied if case folding is enabled.
 
         Raises:
             TypeError: If `text` is not a string.
         """
-        normalized = unicodedata.normalize(
-            self._normalization_form,
+        normalised = unicodedata.normalize(
+            self._normalisation_form,
             text,
         )
 
         if not self._casefolding:
-            return normalized
+            return normalised
 
-        return normalized.casefold()
+        return normalised.casefold()
 
-    def _tokenize(self, text: str) -> list[str]:
+    def _tokenise(self, text: str) -> list[str]:
         """
-        Tokenize text into Unicode word-character sequences.
+        Tokenise text into Unicode word-character sequences.
 
         Args:
-            text (str): Input text to normalize and tokenize.
+            text (str): Input text to normalise and tokenise.
 
         Returns:
-            list[str]: Normalized word tokens in their original left-to-right occurrence order. Repeated tokens are
+            list[str]: Normalised word tokens in their original left-to-right occurrence order. Repeated tokens are
                 retained at this stage; later prediction logic converts them to sets.
 
         Raises:
             TypeError: If `text` is not a string.
         """
-        normalized = self._normalize(text)
+        normalised = self._normalise(text)
 
-        return re.compile(r"[^\W_]+", flags=re.UNICODE).findall(normalized)
+        return re.compile(r"[^\W_]+", flags=re.UNICODE).findall(normalised)
 
     ###
     # public functions
     ###
 
-    @staticmethod
     def evaluate(
+        self,
         predictions_dataframe: pd.DataFrame,
     ) -> pd.DataFrame:
         """
@@ -180,12 +185,12 @@ class Classifier:
 
         evaluation_dataframe = predictions_dataframe.copy()
         evaluation_dataframe = evaluation_dataframe.loc[
-            evaluation_dataframe["lang"].isin(LANGUAGES)
+            evaluation_dataframe["lang"].isin(self._languages)
         ].copy()
 
         groups = [("Overall", evaluation_dataframe)]
 
-        for language in LANGUAGES:
+        for language in self._languages:
             language_df = evaluation_dataframe.loc[
                 evaluation_dataframe["lang"] == language
                 ].copy()
@@ -263,7 +268,7 @@ class Classifier:
         """
         Predict answerability for a question-context pair.
 
-        The method normalizes and tokenizes the question and context, then converts each token sequence into a set of
+        The method normalises and tokenises the question and context, then converts each token sequence into a set of
         distinct tokens, and finally identifies their intersection.
 
         It predicts answerable when the number of shared distinct tokens is at least `_min_shared_tokens`.
@@ -278,8 +283,8 @@ class Classifier:
         Raises:
             TypeError: If `context` or `question` is not a string.
         """
-        context_tokens = set(self._tokenize(context))
-        question_tokens = set(self._tokenize(question))
+        context_tokens = set(self._tokenise(context))
+        question_tokens = set(self._tokenise(question))
         shared_tokens = context_tokens & question_tokens
         question_token_count = len(question_tokens)
         shared_token_count = len(shared_tokens)
@@ -308,8 +313,8 @@ class Classifier:
 
         - `predicted_answerable`: Boolean rule output.
         - `shared_token_count`: Number of distinct tokens present in both question and context.
-        - `question_token_count`: Number of distinct normalized question tokens.
-        - `context_token_count`: Number of distinct normalized context tokens.
+        - `question_token_count`: Number of distinct normalised question tokens.
+        - `context_token_count`: Number of distinct normalised context tokens.
         - `shared_tokens`: Shared tokens separated by a pipe `" | "` for inspection in a DataFrame or CSV.
 
         Args:
