@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
-DEFAULT_DATA = "data/challenge.json"
+DEFAULT_DATA = "data/challenge_sets/challenge.json"
 DEFAULT_OUTPUT = "outputs/week_43_44/challenge_predictions.csv"
 DEFAULT_SUMMARY = "outputs/week_43_44/challenge_metrics.csv"
 DEFAULT_W37 = "models/w37_xlmr_bio_multilingual"
@@ -244,6 +244,7 @@ def main():
     write_csv(args.output, predictions)
     summaries = summarize(predictions)
     write_csv(args.summary, summaries)
+
 
     # Count the total number of challenge pairs.
     n_pairs = len({r["pair_id"] for r in rows})
