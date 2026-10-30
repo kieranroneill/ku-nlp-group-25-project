@@ -3,6 +3,41 @@
   <component name="CsvFileAttributes">
     <option name="attributeMap">
       <map>
+        <entry key="/diff_side.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/w43_w44_challenge_metrics.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/w43_w44_group_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/week_43_44/baselines/rule_based_classifier_metrics.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/week_43_44/w43_w44_group_metrics.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/results/baseline_rule_classifer_metrics.csv">
           <value>
             <Attribute>
@@ -11,6 +46,13 @@
           </value>
         </entry>
         <entry key="/results/baseline_rule_classifer_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/results/week_36/rule_based_classifier_predictions.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />
@@ -32,6 +74,13 @@
           </value>
         </entry>
         <entry key="/results/week_40_41/validation_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/results/week_43_44/baselines/rule_based_classifier_predictions.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />

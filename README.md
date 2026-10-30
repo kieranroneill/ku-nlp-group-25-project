@@ -27,10 +27,14 @@
 ├─ docs/                            <-- LaTex files for report
 │   ├── main.tex
 │   └── ...
+├─ genai-logs/                      <-- Generative AI logs for each student
+│   ├── <ku-username>/
+│   │   └── ...
+│   └── ...
 ├─ notebooks/                       <-- Notebooks to run analysis
 │   ├── notebook.ipynb
 │   └── ...
-├─ results/                         <-- Results of analysis
+├─ outputs/                         <-- Outputs of models for analysis
 │   └── ...
 ├─ scripts/                         <-- Stand-alone scripts
 │   └── ...
@@ -104,7 +108,6 @@ $ uv run scripts/validate_challenge.py <path-to-challenge-set>
 | Link                                                                                                                     | Description                                                             |
 |--------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | [Overleaf](https://www.overleaf.com/project/6ab107696f1f5e9e7040155b)                                                    | The Overleaf project that to collaborate.                               |
-| [Google Colab: Data and Rule-Based Baselines](https://colab.research.google.com/drive/1fXWwqbiRqKgFDwj0xpfJp2gh9DDTu_Su) | The Google Colab notebook to check the dataset and determine baselines. |
 
 <sup>[Back to top ^][table-of-contents]</sup>
 
