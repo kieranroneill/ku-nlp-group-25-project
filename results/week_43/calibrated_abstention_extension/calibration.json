@@ -1,0 +1,12 @@
+{
+  "average_risk": 0.3446109564457355,
+  "average_risk_by_language": {
+    "ar": 0.3111008886852689,
+    "ko": 0.28438174254545323,
+    "te": 0.48185921253644093
+  },
+  "calibrated_expected_calibration_error": 0.03192903622236232,
+  "expected_calibration_error": 0.06226139349153788,
+  "feature_area_under_roc": 0.9152063695208092,
+  "temperature": 5.076399382386589
+}

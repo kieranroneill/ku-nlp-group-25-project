@@ -1,0 +1,16 @@
+{
+  "B_per_language_thresholds": {
+    "broken_abstentions": 1,
+    "broken_answers": 9,
+    "rescued_abstentions": 8,
+    "rescued_answers": 5,
+    "unchanged": 1132
+  },
+  "D_constrained_recall": {
+    "broken_abstentions": 2,
+    "broken_answers": 200,
+    "rescued_abstentions": 35,
+    "rescued_answers": 2,
+    "unchanged": 916
+  }
+}
