@@ -24,7 +24,42 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/outputs/week_36/rule_based_classifier_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/week_40_41/validation_predictions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/week_43/calibrated_abstention_extension/metrics.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/week_43/calibrated_abstention_extension/metrics_by_language.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/outputs/week_43_44/baselines/rule_based_classifier_metrics.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/outputs/week_43_44/baselines/rule_based_classifier_predictions.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />

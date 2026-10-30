@@ -15,7 +15,7 @@ from ku_nlp_group_25_project.constants import LANGUAGES
 from ku_nlp_group_25_project.types import NormalizationForm
 
 
-class Classifier:
+class LexicalOverlapClassifier:
     """
      Deterministic lexical-overlap classifier for answerability prediction.
 

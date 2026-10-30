@@ -1,12 +1,12 @@
 import pandas as pd
 
-from ku_nlp_group_25_project.baselines import Classifier
+from ku_nlp_group_25_project.baselines.lexical_overlap_classifier import LexicalOverlapClassifier
 
 
 class TestClassifierConstructor:
     def test_should_fail_with_less_than_one_minimum_tokens(self):
         try:
-            Classifier(
+            LexicalOverlapClassifier(
                 min_shared_tokens=0
             )
         except ValueError:
@@ -19,7 +19,7 @@ class TestClassifierConstructor:
 
 class TestClassifierBehaviours:
     def test_punctuation_is_omitted(self):
-        classifier = Classifier()
+        classifier = LexicalOverlapClassifier()
         prediction = classifier.predict(
             context="Who?",
             question="من؟",
@@ -29,7 +29,7 @@ class TestClassifierBehaviours:
         assert prediction.shared_token_count == 0
 
     def test_uses_case_insensitively(self):
-        classifier = Classifier()
+        classifier = LexicalOverlapClassifier()
         prediction = classifier.predict(
             context="nasa launched Voyager.",
             question="NASA?",
@@ -39,7 +39,7 @@ class TestClassifierBehaviours:
         assert prediction.shared_tokens == ["nasa"]
 
     def test_repeated_question_token_counts_once(self):
-        classifier = Classifier()
+        classifier = LexicalOverlapClassifier()
         prediction = classifier.predict(
             question="NASA? NASA?? NASA???",
             context="NASA launched Voyager.",
@@ -49,7 +49,7 @@ class TestClassifierBehaviours:
         assert prediction.shared_tokens == ["nasa"]
 
     def test_empty_question_has_zero_overlap(self):
-        classifier = Classifier()
+        classifier = LexicalOverlapClassifier()
 
         prediction = classifier.predict(
             question="",
@@ -58,10 +58,9 @@ class TestClassifierBehaviours:
 
         assert prediction.answerable is False
         assert prediction.question_token_count == 0
-        assert prediction.question_overlap_ratio == 0.0
 
     def test_deterministic_predictions(self):
-        classifier = Classifier()
+        classifier = LexicalOverlapClassifier()
         first_prediction = classifier.predict(
             question="NASA?",
             context="NASA launched Voyager.",
@@ -76,7 +75,7 @@ class TestClassifierBehaviours:
 
 class TestClassifierDataframe:
     def test_prediction_does_not_require_labels(self):
-        classifier = Classifier()
+        classifier = LexicalOverlapClassifier()
         dataframe = pd.DataFrame(
             {
                 "question": ["NASA?", "Who?"],

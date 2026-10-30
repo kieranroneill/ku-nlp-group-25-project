@@ -1,4 +1,3 @@
-from .classifier import Classifier
-from .prediction import Prediction
+from . import lexical_overlap_classifier
 
-__all__ = ["Classifier", "Prediction"]
+__all__ = ["lexical_overlap_classifier"]
