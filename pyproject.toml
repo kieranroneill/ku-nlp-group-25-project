@@ -13,12 +13,14 @@ dependencies = [
     "datasets>=5.0.1",
     "numpy>=2.5.3",
     "pandas>=3.0.6",
+    "scikit-learn>=1.9.1",
 ]
 
 [dependency-groups]
 dev = [
     "ipykernel>=7.3.0",
     "jupyterlab>=4.6.3",
+    "pytest>=9.1.1",
 ]
 
 [build-system]
