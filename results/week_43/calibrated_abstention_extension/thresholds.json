@@ -1,0 +1,40 @@
+{
+  "A_global_threshold": {
+    "cutoff": -2.786309778690338,
+    "language_cutoffs": {},
+    "temperature": 1.0
+  },
+  "B_per_language_thresholds": {
+    "cutoff": -2.786309778690338,
+    "language_cutoffs": {
+      "ar": -3.2907791137695312,
+      "ko": -0.4973607696592808,
+      "te": -4.550312548875809
+    },
+    "temperature": 1.0
+  },
+  "C_temperature_scaled": {
+    "cutoff": -0.6338648714429451,
+    "language_cutoffs": {},
+    "temperature": 5.076399382386589
+  },
+  "D_constrained_recall": {
+    "cutoff": -14.920562148094177,
+    "language_cutoffs": {
+      "ar": -0.2680683359503746,
+      "ko": -14.254021883010864,
+      "te": -18.12300157546997
+    },
+    "temperature": 1.0
+  },
+  "E_feature_combiner": {
+    "cutoff": -0.22150155526016094,
+    "language_cutoffs": {},
+    "temperature": 1.0
+  },
+  "F_fixed_probability": {
+    "cutoff": -0.5,
+    "language_cutoffs": {},
+    "temperature": 5.076399382386589
+  }
+}
