@@ -1,0 +1,5 @@
+group,n,accuracy,macro_f1,answerable_precision,answerable_recall,answerable_f1,unanswerable_precision,unanswerable_recall,unanswerable_f1,answerable_support,unanswerable_support,tp,tn,fp,fn
+Overall,10,0.6,0.5238095238095238,1.0,0.2,0.3333333333333333,0.5555555555555556,1.0,0.7142857142857143,5,5,1,5,0,4
+ar,4,0.5,0.3333333333333333,0.0,0.0,0.0,0.5,1.0,0.6666666666666666,2,2,0,2,0,2
+ko,4,0.5,0.3333333333333333,0.0,0.0,0.0,0.5,1.0,0.6666666666666666,2,2,0,2,0,2
+te,2,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1,1,1,1,0,0
