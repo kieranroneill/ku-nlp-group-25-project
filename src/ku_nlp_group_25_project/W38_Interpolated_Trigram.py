@@ -207,7 +207,7 @@ def self_test():
 def main():
     parser = argparse.ArgumentParser(description="Korean interpolated trigram language model")
     parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--output", default="outputs/w38_korean_lm_question_scores.csv")
+    parser.add_argument("--output", default="outputs/week_38/korean_lm_question_scores.csv")
     args = parser.parse_args()
     if args.self_test:
         self_test()
