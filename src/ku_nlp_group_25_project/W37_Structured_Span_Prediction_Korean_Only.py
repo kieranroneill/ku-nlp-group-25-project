@@ -1,4 +1,3 @@
-import pandas as pd
 import re
 from ku_nlp_group_25_project.utilities.load_dataset import load_dataset
 
@@ -9,7 +8,7 @@ train, validation = load_dataset()
 train = train[train["lang"] == "ko"].copy()
 validation = validation[validation["lang"] == "ko"].copy()
 print(train[["lang", "question", "answer"]].head(5).to_string(index=False))
-# ===========================================================================================
+
 TOKEN_PATTERN = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 
 # Build a token vocabulary using only the training examples.
@@ -85,7 +84,6 @@ def character_span_to_bio(context, answerable, answer_start=-1, answer_text=""):
     tokens, offsets = tokenize_with_offsets(context)
     labels = ["O"] * len(tokens)
 
-# Lab中数据的情况和project里不一样，不能沿用判定方法，要改成用answerable列判断。
     if not answerable:
         return tokens, offsets, labels
 
@@ -264,15 +262,8 @@ encoded_validation = [
 print(f"Encoded {len(encoded_train)} training examples.")
 print(f"Encoded {len(encoded_validation)} validation examples.")
 
-# 检查assert 完全恢复原 answer
-# Sample five examples from each class.
-# answerable_samples = train[train["answerable"] == (True)].sample(n=5, random_state=42)
-# unanswerable_samples = train[train["answerable"] == (False)].sample(n=5, random_state=42)
-
 answerable_samples = train[train["answerable"] == True]
 unanswerable_samples = train[train["answerable"] == False]
-
-# samples = pd.concat([answerable_samples, unanswerable_samples])
 samples = validation.copy()
 
 alignment_fixes = 0
@@ -317,11 +308,7 @@ for index, row in samples.iterrows():
         f"Answerable: {answerable} Check passed "
     )
 
-    # table = pd.DataFrame({"token": tokens, "offset": offsets, "label": labels,})
-    # print(table.to_string(index=False))
-
 # Print the check result.
-# print("\nAll 10 round-trip checks passed.")
 print(f"\nAll {len(samples)} round-trip checks passed.")
 # ===========================================================================================
 print(f"Examples requiring token alignment: {alignment_fixes}")
