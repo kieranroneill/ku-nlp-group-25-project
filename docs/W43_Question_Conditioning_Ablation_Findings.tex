@@ -1,0 +1,107 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,margin=0.76in]{geometry}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\setmainfont{DejaVu Sans}
+\setCJKmainfont{Noto Sans CJK KR}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.10}
+\setlist[itemize]{leftmargin=1.5em,topsep=2pt,itemsep=2pt,parsep=0pt}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\sectionline}[1]{\vspace{2pt}{\large\bfseries #1}\par\vspace{0pt}}
+\begin{document}
+\fontsize{9.5}{12.1}\selectfont
+\begin{center}
+{\Large\bfseries W43 -- Question-Conditioning Ablation}\par\vspace{3pt}
+{\normalsize Notes on what I tried and what we found}
+\end{center}
+\vspace{-6pt}
+
+\sectionline{Quick summary}
+I wanted to check whether our W37 BIO model really depends on the question when finding an answer in the context. This came from the W43--44 challenge set, where changing a question from answerable to unanswerable did not change the model's answer in any of our five pairs. For this follow-up, I kept the same trained model and contexts, but replaced every question with an empty string.
+
+The outcome was quite clear: the model became much more likely to return no answer. Its answer-token micro-F1 fell from 41.44\% to 4.14\%, and its normalized SQuAD Exact Match fell from 42.60\% to 14.98\%. In total, 766 of 1,155 predictions changed. So the earlier challenge-set behaviour does \emph{not} mean the model can work just as well without the question.
+
+\sectionline{1. What I changed in the code}
+I reused the frozen W37 XLM-R BIO checkpoint (seed 123) and the existing W37 evaluation and span-decoding functions. Each validation example was sent to the model as an empty question and its original, unchanged context. I did not retrain the model, alter the labels, introduce the experimental I-ANS fallback, change the decoder, or choose a new threshold.
+
+Both runs use the same 1,155 validation rows: 415 Arabic, 356 Korean, and 384 Telugu. I matched the original and ablated prediction CSVs by \texttt{validation\_index} and checked that language, original question, context, and gold answer were identical for every row. The only intended input change was the question passed to the tokenizer/model.
+
+The comparison uses the same W37 metrics: answer-token micro-F1, exact character-span match, normalized SQuAD-style EM and token F1, and answerability macro-F1. This is an inference-only test; there is no additional training cost beyond loading the checkpoint and evaluating the examples.
+
+\sectionline{2. Main results}
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}Yrr@{}}
+\toprule
+Metric & Original question & Empty question \\
+\midrule
+Answer-token micro-F1 & 41.44\% & 4.14\% \\
+Exact character-span match & 39.31\% & 14.81\% \\
+Normalized SQuAD EM & 42.60\% & 14.98\% \\
+Normalized text-token F1 & 48.56\% & 15.54\% \\
+Answerability macro-F1 & 60.04\% & 23.62\% \\
+Predicted empty answers & 391 & 1,008 \\
+Incorrect refusals on answerable rows & 282 & 863 \\
+Correct empty answers & 109 & 145 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+The biggest change was in whether the model produced any span at all. With questions present, it answered 764/1,155 examples; without questions, it answered only 147. The ablated model returned an empty answer for 87.3\% of the validation set. Its recall for gold answer tokens was only 2.18\%. This explains why micro-F1 collapsed even though the model made slightly more correct abstentions (145 instead of 109).
+
+\sectionline{3. How many outputs actually changed?}
+Of the 1,155 comparisons, 766 predictions (66.3\%) changed and 389 (33.7\%) stayed the same. The effect appeared in all three languages: Arabic 259/415 (62.4\%), Korean 253/356 (71.1\%), and Telugu 254/384 (66.1\%).
+
+\begin{center}
+\begin{tabular}{@{}l r@{}}
+\toprule
+Change in answerability decision & Number of rows \\
+\midrule
+Non-empty answer $\rightarrow$ empty & 654 \\
+Empty $\rightarrow$ non-empty answer & 37 \\
+Non-empty $\rightarrow$ non-empty & 110 \\
+Empty $\rightarrow$ empty & 354 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Among the 110 cases where both conditions produced a non-empty answer, the extracted text changed in 75 cases and stayed identical in 35. So removing the question can change \emph{which} span is selected, but the much larger effect is that the decoder finds no valid answer span at all.
+
+\sectionline{4. Some concrete examples}
+The most useful examples are questions the original model got right but the no-question model refused to answer. Here are a few from the actual output, covering all three languages:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}p{1.1cm}p{1.1cm}Yp{2.4cm}p{2.0cm}@{}}
+\toprule
+Lang. & Index & Question (English meaning) & Gold / original output & Without question \\
+\midrule
+Arabic & 642 & Where did Newton live? & Grantham / Grantham & empty \\
+Arabic & 640 & What was Finland's first university? & Royal Academy of \AA bo / same & empty \\
+Korean & 288 & What programming language does OpenStack use? & Python / Python & empty \\
+Telugu & 14 & What is Egypt's internet domain code? & \texttt{.eg} / \texttt{.eg} & empty \\
+\bottomrule
+\end{tabularx}
+\end{center}
+Across the full validation set, 371 examples that were originally correct under normalized EM became incorrect after ablation. There were also 52 cases in the other direction: originally incorrect, then correct. The net change is therefore 319 fewer correct predictions, which matches the EM drop from about 492/1,155 to 173/1,155. Those 52 improvements are worth keeping in the record; we should not describe the intervention as making \emph{every} prediction worse.
+
+\sectionline{5. Interesting details and outliers}
+\begin{itemize}
+\item \emph{Korean had the largest proportion of changes.} Its 253/356 changed outputs (71.1\%) are more than the Arabic or Telugu proportions, although this alone does not explain \emph{why}. We would need a more controlled language-level analysis before drawing a linguistic conclusion.
+\item \emph{The model also gained some correct no-answer decisions.} Correct empty answers increased by 36 (from 109 to 145). This is not an overall improvement: missed answers increased by 581 (from 282 to 863). The model became excessively conservative rather than better calibrated.
+\item \emph{Normalized EM can hide tiny boundary differences.} On Telugu validation index 22, the gold text was \texttt{37.0 \textdegree C (98.6 \textdegree F)}, but the original prediction omitted the final closing parenthesis. Its normalized SQuAD EM was still 1 because punctuation is removed; its raw character span was not an exact match. This is why I kept both metrics in the report.
+\item \emph{The challenge set and ablation tell different parts of the story.} In our five challenge pairs, the model extracted the same answer even when the question changed to one the context could not answer. Here, deleting the question altogether had a large effect. The model appears to need the question to extract answers, but may fail to respond appropriately to certain subtle changes in its meaning.
+\end{itemize}
+
+\sectionline{6.My Analysis}
+This experiment supports a fairly narrow conclusion: our frozen BIO model is highly sensitive to the presence of the question. It does \emph{not} show that the model robustly understands the question, nor does it prove the model ignores meaning when it repeats an answer in the challenge set. Replacing text with an empty string is also an unusual input compared with training: it changes token positions and removes all question tokens, so some degradation could reflect this distribution shift.
+
+A useful next test, if there is time, would be to \emph{swap questions between existing validation examples} while leaving contexts unchanged. That could help separate sensitivity to question presence from sensitivity to its content. I have not run this follow-up, and it is not needed to document the current ablation.
+
+
+\end{document}

@@ -1,0 +1,159 @@
+
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,margin=0.72in]{geometry}
+\usepackage{fontspec}
+\usepackage{array,tabularx,booktabs}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\setmainfont{DejaVu Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=0.80]
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.14}
+\setlist[itemize]{leftmargin=1.4em,topsep=2pt,itemsep=1pt,parsep=0pt}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\sectionline}[1]{\vspace{5pt}{\large\bfseries #1}\par\vspace{1pt}}
+
+\begin{document}
+\fontsize{9.75}{12.5}\selectfont
+\begin{center}
+{\Large\bfseries W43--44: How did our W37 BIO model handle the group challenge set?}\\[3pt]
+{\small Group 25 working findings \textbar{} Frozen W37 BIO model \textbar{} 15 pairs / 30 questions}
+\end{center}
+\vspace{-7pt}
+
+\sectionline{Quick summary}
+
+We first tested W37 on my own five question pairs, then re-ran the \emph{same frozen model} on the team's combined challenge set: five pairs each from Alex, Kieran and me. Each pair keeps the English context fixed but changes the question so one version has an answer in the context and the other should receive an empty answer. The group's questions cover Arabic, Korean, Telugu and Chinese. Chinese was \emph{not} in the W37 training languages, so those five pairs are a small zero-shot test.
+
+\textbf{Main finding:} W37 answered 11/30 questions exactly (36.7\% EM and token F1) but got \textbf{0/15 complete pairs}. In \textbf{13/15 pairs}, it gave exactly the same output for both question versions. On the 20 Arabic/Korean/Telugu questions it \emph{never abstained}; on the 10 Chinese questions it abstained five times, including twice when it should have answered. The overall answerability macro-F1 was 0.475.
+
+\sectionline{1. What was run?}
+
+We used the combined \path{data/challenge_sets/Group25_Challenge.json}, which has 30 records (15 matched pairs, exactly half answerable). The official \texttt{validate\_challenge.py} accepted it: ``Challenge set is valid: 30 records.'' Our \texttt{W43\_Challenge\_Evaluate.py} reads the JSON directly. The W37 model checkpoint and existing BIO span decoder were not retrained or tuned on the challenge questions; we only allowed the evaluator to accept the Chinese language tag. All questions were evaluated once and scored against their provided answers.
+
+We report normalized SQuAD-style exact match (EM), whitespace-token F1 after SQuAD normalization, answerability macro-F1 (whether the output is empty), and fully correct \emph{pairs}. A pair passes only when the model outputs the correct answer for the answerable version \emph{and} nothing for its unanswerable twin. Our model's token F1 happened to equal EM here: every answer was either an exact match or had no scored token overlap.
+
+\sectionline{2. Results: all questions and language groups}
+
+\begin{center}
+\begin{tabularx}{0.94\linewidth}{@{}Y r r@{}}
+\toprule
+Measure & My 5 pairs & Group 15 pairs\\
+\midrule
+Total evaluated & 10 & 30\\
+Correct answerable questions & 4/5 & 8/15\\
+Correct unanswerable questions & 0/5 & 3/15\\
+Normalized QA EM / token F1 & 40.0\% / 40.0\% & 36.7\% / 36.7\%\\
+Answerability macro-F1 & 0.333 & 0.475\\
+Fully correct matched pairs & 0/5 & 0/15\\
+Pairs with identical predicted text & 5/5 & 13/15\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\vspace{-4pt}
+
+\begin{center}
+\begin{tabularx}{0.94\linewidth}{@{}Y r c c c@{}}
+\toprule
+Language & Questions & Exact matches & Correct answerable & Correct unanswerable\\
+\midrule
+Arabic (ar) & 8 & 3/8 & 3/4 & 0/4\\
+Korean (ko) & 8 & 4/8 & 4/4 & 0/4\\
+Telugu (te) & 4 & 1/4 & 1/2 & 0/2\\
+Chinese (zh; zero-shot) & 10 & 3/10 & 0/5 & 3/5\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+One useful distinction: the model \emph{attempted an answer} on 13 of the 15 answerable questions, but only eight extracted the exact right text. Its answerability confusion counts were: 13 correctly called answerable, 12 unanswerable questions incorrectly answered, two answerable questions incorrectly left blank, and three correctly left blank. The answerability decision is not the same thing as extracting the right span.
+
+\newpage
+
+\sectionline{3. What happened to all 15 pairs?}
+
+Each line shows the gold answer for the answerable question (A), the model's predicted answer for A, and its prediction for the changed, unanswerable version (U). An empty output is shown as \texttt{[empty]}; every U gold answer is empty. The question changes are short English summaries of the original non-English questions.
+
+\par\medskip
+
+{\fontsize{8.7}{11.2}\selectfont
+\noindent\begin{tabularx}{\linewidth}{@{}p{1.0cm}Y p{1.75cm}p{1.68cm}p{1.68cm}@{}}
+\toprule
+Lang. & What changed in the question? & Gold (A) & Pred. (A) & Pred. (U)\\
+\midrule
+
+\multicolumn{5}{@{}l}{\textbf{Alex's five pairs (Chinese, zero-shot)}}\\
+
+zh & Pok\'emon exports: world $\to$ China & 1998 & 1996 & 1996\\
+
+zh & Video-game publisher $\to$ music publisher & Nintendo & [empty] & [empty]\\
+
+zh & Species count: 2026 $\to$ 2020 & 1025 & 151 & 151\\
+
+zh & Tajiri's college $\to$ University of Tokyo & electrical engineering & [empty] & [empty]\\
+
+zh & Pok\'emon $\to$ Digimon's effect on a market & US & Japan & [empty]\\
+
+\midrule
+
+\multicolumn{5}{@{}l}{\textbf{Kieran's five pairs}}\\
+
+ar & University of Basrah $\to$ Baghdad & 1964 & 1964 & 1964\\
+
+ar & Dam: electricity generation $\to$ impounding water & 7 July 1986 & 1981 & 1981\\
+
+ko & Tripitaka blocks: year housed $\to$ year carved & 1398 & 1398 & 13\\
+
+ko & Hallasan's height $\to$ Seoraksan's height & 1,947 metres & 1,947 metres & 1,947 metres\\
+
+te & Darjeeling: India TRIPS protection $\to$ EU PGI status & 2004 & 2004 & 2004\\
+
+\midrule
+
+\multicolumn{5}{@{}l}{\textbf{My five pairs}}\\
+
+ar & Apollo 11 $\to$ Apollo 12 & 1969 & 1969 & 1969\\
+
+ko & Berlin Wall built $\to$ fell & 1961 & 1961 & 1961\\
+
+ko & Eiffel Tower completed $\to$ repainted & 1889 & 1889 & 1889\\
+
+ar & Marie Curie's Physics $\to$ Literature Nobel & 1903 & 1903 & 1903\\
+
+te & First $\to$ second modern Olympics & Athens & Athen & Athen\\
+
+\bottomrule
+\end{tabularx}}
+
+\sectionline{4. Recurring failure types}
+
+These are mutually exclusive \emph{record-level} outcomes, not estimates of how often the errors occur outside this hand-built set:
+
+\begin{itemize}
+
+\item \textbf{Unsupported answer instead of abstention: 12 cases.}
+All ten Arabic/Korean/Telugu U questions got some non-empty span. For example, Apollo 12 still received \texttt{1969}, and the question about when the Berlin Wall fell still received its construction year \texttt{1961}. Two Chinese U questions also received unsupported years/numbers.
+
+\item \textbf{Wrong non-empty span on an answerable question: 5 cases.}
+The Pok\'emon export question got \texttt{1996} (game release) rather than \texttt{1998} (export); species count got \texttt{151} rather than \texttt{1025}; the US-market question got \texttt{Japan}. Kieran's Mosul Dam question got the construction year \texttt{1981} rather than power generation on \texttt{7 July 1986}. My Olympics question returned \texttt{Athen} instead of \texttt{Athens}, a likely boundary-level mismatch that is \emph{not} diagnosed from outputs alone.
+
+\item \textbf{False abstention on an answerable question: 2 cases.}
+Both happened in Chinese: the Nintendo publisher question and Tajiri's electrical-engineering question received empty answers even though the passages contained their gold spans.
+
+\end{itemize}
+
+\newpage
+
+\sectionline{5. What the paired test tells us}
+
+The model returned \emph{identical text} for the two variants in 13/15 pairs: eleven times the same non-empty span and twice the same empty output. Only two pairs produced different outputs: the Chinese Pok\'emon-vs-Digimon pair (\texttt{Japan} vs empty), and the Korean Tripitaka pair (\texttt{1398} vs \texttt{13}). Neither pair was fully correct. The token scores inside the model might still differ even when the final text is unchanged, so this does not prove that the model completely ignored the question.
+
+In the ten Chinese questions, the model returned an empty answer five times, versus \emph{zero} empties in the twenty questions in the three trained languages. It correctly rejected three Chinese U questions, but rejected two Chinese A questions too. This is an interesting zero-shot observation, \emph{not} proof that Chinese or unseen languages inherently cause more abstention: all Chinese examples came from Alex's Pok\'emon-themed set, whereas the other questions cover different topics and styles. Language and question design are confounded.
+
+For context, our earlier full W37 validation evaluation on 1,155 ordinary examples found many false abstentions. This challenge set instead exposes repeated unsupported answers on our specifically selected paired edits. The two results concern different input distributions; neither cancels out the other.
+
+\end{document}

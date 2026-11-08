@@ -1,0 +1,440 @@
+\documentclass[11pt,a4paper,twocolumn]{article}
+% Two-column individual contribution report for KU NLP Group 25.
+% Compile with XeLaTeX (Korean examples require xeCJK).
+\usepackage[a4paper,top=0.66in,bottom=0.70in,left=0.68in,right=0.68in]{geometry}
+\usepackage{fontspec}
+\setmainfont{lmroman10-regular.otf}[BoldFont=lmroman10-bold.otf,ItalicFont=lmroman10-italic.otf,BoldItalicFont=lmroman10-bolditalic.otf]
+\usepackage{xeCJK}
+\setCJKmainfont{Noto Serif CJK KR}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx,array}
+\usepackage{caption}
+\usepackage{balance}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage[authoryear,round]{natbib}
+\hypersetup{pdftitle={Individual Report - Reliable Multilingual Question Answering},pdfauthor={Md Sultan Parvez}}
+\setlength{\columnsep}{0.24in}
+\setlength{\columnseprule}{0pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2.25pt plus 0.5pt minus 0.4pt}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.07}
+\captionsetup{font=footnotesize,labelfont=bf,skip=3pt}
+\titleformat{\section}{\bfseries\normalsize}{\thesection}{0.45em}{}
+\titleformat{\subsection}{\bfseries\small}{\thesubsection}{0.45em}{}
+\titlespacing*{\section}{0pt}{8pt plus 2pt}{3pt}
+\titlespacing*{\subsection}{0pt}{5pt}{2pt}
+\setlist[itemize]{nosep,leftmargin=1.1em,topsep=1pt}
+\emergencystretch=1.1em
+\clubpenalty=10000
+\widowpenalty=10000
+
+\begin{document}
+\twocolumn[{
+  \begin{center}
+    {\Large\bfseries Individual Report}\par\vspace{3pt}
+    {\normalsize Reliable Multilingual Question Answering}\par\vspace{7pt}
+    {\normalsize Md Sultan Parvez \quad | \quad Group 25}\par\vspace{4pt}
+    {\small October 29, 2026}
+  \end{center}
+  \vspace{5pt}
+}]
+
+\section{Research Question and Data}
+The project asks how reliably a system can \emph{extract an answer from an English context when the question is in another language, and abstain when no supported answer exists}. We use questions in Arabic (ar), Korean (ko), and Telugu (te), with English contexts and annotated answer spans. The provided splits contain 6,335 training and 1,155 validation records: 415 Arabic (363 answerable), 356 Korean (337 answerable), and 384 Telugu (291 answerable) validation questions. There are therefore 991 answerable and 164 unanswerable validation cases. Core multilingual comparisons use those same 1,155 records. The Week 38 language-model experiment uses only the 2,422 Korean training and 356 validation questions. The project builds on multilingual question-answering
+research, including TyDi QA \citep{clark2020tydi}
+and XOR QA \citep{asai2021xor}.
+
+The investigation distinguishes answerability from extraction. This distinction is important for interpreting scores and failures.
+
+\section{Methods}
+\subsection{Baselines and multilingual span models}
+\textbf{W36 baseline:} For context, the group's deterministic lexical-overlap rule normalizes and tokenizes question/context text, then predicts answerable when their distinct token sets intersect, $|Q\cap C|\ge1$. It provides an interpretable baseline but no cross-lingual semantic representation.
+
+\textbf{W37 BIO model.} I extended the group's existing preprocessing by repairing annotated answer boundaries falling within tokens and validating BIO-to-span reconstruction on Korean data. I then implemented a multilingual XLM-RoBERTa token-classification pipeline \citep{conneau2020xlmr} that assigns O, B-ANS, and I-ANS to English context tokens, using the non-English question as additional input. Question tokens and padding are excluded from the classification loss. Training used AdamW, learning rate $2\times10^{-5}$, batch size 4, two epochs, input length 384, and seeds 42, 7, and 123. Sixteen answerable training cases were excluded because truncation placed the complete annotated span beyond the model window (6,319 used). All validation items remained in the evaluation. The \emph{frozen primary decoder} requires a B-ANS start token and otherwise abstains; an all-O system is the simplest span baseline.
+
+\textbf{W40--41 integrated QA comparison.} I matched the saved W37 BIO seed-123 predictions with Haoyang Sun's integrated QA seed-44 predictions using validation IDs; language, question, context, answer, offset, and answerability label agreed for every one of the 1,155 examples. 
+I computed comparable SQuAD-style normalized
+exact match (EM) and token F1, following
+the evaluation approach associated with
+SQuAD 2.0 \citep{rajpurkar2018squad2},
+alongside answerability macro-F1.
+BIO's separate context-token micro-F1
+was kept distinct from these metrics. The integrated reader and its no-answer cutoff had been selected on validation data, so these are development results, not an independent test.
+
+\subsection{Korean language modelling and robustness}
+
+\textbf{W38 extension:} I implemented a Korean
+interpolated trigram language model, using a
+common whitespace-tokenized vocabulary,
+add-$k$ smoothing ($k=0.1$), and fixed
+interpolation weights. The interpolation is defined as:
+
+\begin{equation}\label{eq:mix}
+\begin{split}
+P(w_i\mid w_{i-2},w_{i-1})={}&0.15P_1(w_i)\\
+ &+0.35P_2(w_i\mid w_{i-1})\\
+ &+0.50P_3(w_i\mid w_{i-2},w_{i-1}).
+\end{split}
+\end{equation}
+Corpus perplexity pools log probabilities over 1,729 question tokens and 356 end-of-sequence targets (2,085 total). The hypotheses were that (H1) conditioning on history should improve over unigram prediction, (H2) bigrams should exploit frequent question-word transitions, and (H3) interpolated trigrams should further improve on bigrams. Interpolation weights were not optimized on validation.
+
+\textbf{W43--44 tests.} I evaluated the frozen BIO checkpoint on the group's 15 question pairs (30 items). Each pair shares a context, while an answerable question is minimally changed to become unanswerable. Five pairs are Chinese zero-shot cases. I also performed an inference-only ablation replacing the validation question text with an empty string, keeping weights, gold annotations, contexts, and decoder fixed.
+
+\section{Validation Results}
+\subsection{Baselines and structured extraction}
+The lexical-overlap rule achieved 0.1524 accuracy and 0.1408 macro-F1, with answerable recall 0.0212 and unanswerable recall 0.9451. It frequently rejected valid questions because English and non-English texts seldom share surface tokens. The W37 all-O baseline attained 14.20\% exact character-span match (correct empty answers only).
+
+\begin{table}[htbp]
+\centering\footnotesize
+\begin{tabular}{@{}lrr@{}}
+\toprule
+BIO seed & Token micro-F1 & Span EM \\
+\midrule
+42  & 30.75\% & 33.07\% \\
+7   & 33.67\% & 33.51\% \\
+123 & \textbf{41.44\%} & \textbf{39.31\%} \\
+Mean $\pm$ SD & 35.29 $\pm$ 5.53\% & 35.30 $\pm$ 3.48\% \\
+\bottomrule
+\end{tabular}
+\caption{W37 validation performance ($n=1{,}155$).}
+\label{tab:bio}
+\end{table}
+
+For seed 123, the supplementary SQuAD-style EM and token F1 were 42.60\% and 48.56\%, answerability macro-F1 was 0.6004. These are distinct from raw character-span EM and BIO answer-token micro-F1.
+
+\textbf{Per-language BIO performance:} Arabic reached 43.71\% answer-token micro-F1 and 43.13\% character-span EM, Korean 42.32\% and 39.61\%, and Telugu 37.13\% and 34.90\%, respectively. Telugu was lowest on both metrics, although these aggregate results do not establish a linguistic cause. The best validation run (seed 123) was selected for detailed analysis. The three-seed mean is the more appropriate summary of run-to-run variation.
+
+\subsection{Korean language-model comparison}
+\begin{table}[htbp]
+\centering\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+Model & Validation perplexity $\downarrow$ \\
+\midrule
+Unigram baseline & 46.5771 \\
+Add-$k$ bigram & 24.3639 \\
+Pure trigram  & 48.8377 \\
+Interpolated trigram & 26.6954 \\
+\bottomrule
+\end{tabular}
+\caption{corpus-level perplexity}
+\label{tab:lm}
+\end{table}
+
+H1 and H2 are supported relative to the unigram, H3 is not supported. The interpolated trigram remained about 9.6\% worse than the bigram, while the separately implemented pure trigram performed even worse. A major issue is that 662/1,729 validation question words (38.29\%) map to \texttt{<UNK>}. This can make superficially low perplexity reflect predictable unknown-word sequences instead of useful Korean lexical prediction.
+
+The original Korean and English glosses of the five lowest and five highest unfiltered interpolated-trigram perplexities are displayed in the table below. Each entry gives ID, perplexity, and proportion of unknown words.
+
+\begin{table*}[t]
+\centering\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.10}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Lowest perplexity} & \textbf{Highest perplexity}\\
+\midrule
+\textbf{203: 3.95, 6/6 UNK.} 로마에 에트루리아인 왕조는 몇년간 로마를 지배했나요? \emph{How many years did the Etruscan dynasty rule Rome?} & \textbf{73: 259.66, 0/3 UNK.} 성경은 언제 쓰여졌는가? \emph{When was the Bible written?}\\
+\textbf{53: 4.08, 4/4 UNK.} 미국은 주마다 법이 다른가? \emph{Do laws differ among US states?} & \textbf{347: 212.39, 1/4 UNK.} 명나라는 현재의 어느 나라인가? \emph{Which modern country corresponds to the Ming dynasty?}\\
+\textbf{198: 4.08, 4/4 UNK.} 불고기는 소의 어느부위를 사용하는가? \emph{Which part of a cow is used for bulgogi?} & \textbf{191: 206.92, 1/6 UNK.} 미국에서 제일 작은 면적의 주는 어디인가요? \emph{Which US state is smallest by area?}\\
+\textbf{115: 4.20, 3/3 UNK.} 소아마비 바이러스의 증상은? \emph{What are symptoms of poliovirus infection?} & \textbf{125: 191.56, 1/4 UNK.} 남아프리카 공화국의 개국일은 언제인가? \emph{When was South Africa founded?}\\
+\textbf{154: 4.20, 3/3 UNK.} 인도네시아에서는 동성결혼이 합법적인가? \emph{Is same-sex marriage legal in Indonesia?} & \textbf{163: 184.38, 1/5 UNK.} 십자군 전쟁은 총 몇차례 일어났는가? \emph{How many Crusades occurred?}\\
+\bottomrule
+\end{tabularx}
+\caption {Perplexity comparison.}
+\label{tab:examples}
+\end{table*}
+
+Question 203 had a previously missing \emph{bigram} perplexity of \textbf{3.8906}, versus \textbf{3.9540} for my interpolation. Its bigram \texttt{<UNK>} $\rightarrow$ \texttt{<UNK>} transition appeared 992 times among 3,285 occurrences of the history. Question 73 had no unknown words but an unseen adjacent-token transition (observed bigram transition counts 3, 0, 1, and 2); its high perplexity is therefore consistent with sparse local transitions. We did not separately measure validation trigram coverage, so sparsity as the reason for the interpolated model's weakness remains a hypothesis.
+
+\subsection{Integrated QA versus BIO}
+\begin{table}[htbp]
+\centering\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & \multicolumn{2}{c}{EM (\%)} & \multicolumn{2}{c}{Token F1 (\%)} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Language & BIO & QA & BIO & QA \\
+\midrule
+Arabic (415) & 45.78 & 57.59 & 51.64 & 67.12 \\
+Korean (356) & 44.10 & 58.43 & 50.59 & 69.00 \\
+Telugu (384) & 37.76 & 51.56 & 43.35 & 59.32 \\
+\textbf{Overall} & \textbf{42.60} & \textbf{55.84} & \textbf{48.56} & \textbf{65.11} \\
+\bottomrule
+\end{tabular}
+\caption{Matched predictions: W37 BIO seed 123 and W40--41 integrated QA seed 44.}
+\label{tab:qa}
+\end{table}
+
+Integrated QA improved normalized EM by 13.24 percentage points, token F1 by 16.55 points, and answerability macro-F1 from 0.6004 to 0.8550. Incorrect abstentions declined from 282 to 39 and unsupported answers from 55 to 42. Both were exactly correct on 429 validation questions; QA alone was correct on 216, BIO alone on 63, and neither on 447. Thus QA was stronger overall but not universally better.
+
+The answerability macro-F1 gains occurred in each language: Arabic 0.6430 $\rightarrow$ 0.9288; Korean 0.5450 $\rightarrow$ 0.8146; and Telugu 0.5798 $\rightarrow$ 0.8006. These figures are for the aligned seed-123 versus seed-44 outputs.
+
+\section{Challenge Set and Error Analysis}
+
+\subsection{BIO and Integrated QA Error Analysis}
+
+\textbf{W37 BIO errors.}
+Of the 282 answerable examples incorrectly rejected
+by BIO seed 123, 188 contained only O predictions,
+while 94 contained I-ANS labels without a B-ANS
+start. In 51 of those 94 cases, at least one I-ANS
+token overlapped the gold answer. Thus, both
+failure to identify answer tokens and invalid
+BIO sequences contributed to false abstentions.
+
+\textbf{W40--41 QA validation error analysis.}
+I manually examined 12 selected integrated QA
+validation errors, four from each language.
+The analysis used four categories, each containing
+three examples. The counts describe this selected
+sample rather than population-level error rates.
+
+\begin{itemize}
+
+\item \textbf{Unsupported answers (3).}
+Arabic example 981 asked about Angola, but the
+context discussed Mongols in Syria; QA extracted
+an unrelated historical entity. Korean example
+398 requested a count of states without capitals,
+but QA returned ``no capital'' without a
+supporting count. Telugu example 1062 asked
+about B. Gopal's parents, while QA extracted
+``Michaela'' from unrelated contextual information.
+
+\item \textbf{False abstentions (3).}
+Arabic example 752 concerned Paul as an apostle,
+but QA returned empty. The distinction between
+an apostle and one of the Twelve Apostles
+requires careful interpretation.
+Korean example 438 concerned the legality of
+same-sex marriage in Indonesia, for which the
+context provided a negative answer, but QA
+abstained. Telugu example 74 explicitly identified
+Russia as the largest country by area, yet QA
+returned empty.
+
+\item \textbf{Wrong entities (3).}
+Arabic example 644 asked for Yemen's first
+president; QA selected Hadi instead of
+Ali Abdullah Saleh. Korean example 302 confused
+director Waris Hussein with actor William
+Hartnell. Telugu example 0 selected Seattle
+instead of Portland as Oregon's largest city.
+
+\item \textbf{Span-length errors (3).}
+Arabic example 660 required ``Alfred Victor'',
+but QA extracted a longer name containing
+additional title information. Korean example
+294 required ``Seoul'', whereas QA returned
+a longer address. Telugu example 3 required
+``1914'', but the prediction included the
+1914--1918 interval.
+
+\end{itemize}
+
+\textbf{Comparison with BIO.}
+The integrated model corrected several BIO
+errors across all three languages. Examples
+include recovering ``Yuri Gagarin'' (Arabic),
+the six Hindu philosophical schools (Korean),
+and ``West Bengal'' (Telugu), which BIO had
+either missed or extracted incorrectly.
+Nevertheless, both models sometimes selected
+incorrect entities or overly long spans.
+
+\textbf{Analysis.}
+The errors demonstrate that identifying a
+contextually related phrase is not sufficient
+to answer the specific question. Incorrect
+abstention, entity confusion, and span-boundary
+errors are distinct problems. Some exact-match
+failures involve answer granularity rather than
+completely unrelated predictions. Because the
+12 examples were deliberately selected, the
+category counts should not be interpreted
+as overall error frequencies.
+
+
+\subsection{Matched challenge questions}
+On the team's 15-pair challenge set (30 questions), the frozen BIO model obtained \textbf{11/30 exact answers} (36.7\% normalized EM and token F1), answerability macro-F1 0.475, and \textbf{zero fully correct pairs}. Predictions were identical between answerable/unanswerable counterparts in \textbf{13/15 pairs}. For example, changing a question about when the Berlin Wall was built to when it fell still produced ``1961''. The model never abstained on the 20 Arabic, Korean, and Telugu challenge questions; its 10 Chinese zero-shot questions showed more abstentions, but the Chinese questions also differed in topic and construction. The hand-built set does not justify a population-wide linguistic conclusion.
+
+The language-specific correct counts were Arabic 3/8, Korean 4/8, Telugu 1/4, and Chinese 3/10. Among the 15 answerable challenge questions, the BIO system produced the correct answer eight times; among the 15 unanswerable questions, it correctly abstained only three times. Twelve unsupported answers were therefore returned for unanswerable questions. For the five challenge pairs I contributed, the original and modified questions received identical non-empty answers in every pair, yielding 0/5 fully correct pairs. This exposes a \emph{question-switching} failure mode distinct from the false abstentions common in ordinary validation.
+
+\subsection{Removing question information}
+For the separate inference-only question-removal ablation, \textbf{766/1,155 predictions changed}. Answer-token micro-F1 dropped \textbf{41.44\% $\rightarrow$ 4.14\%}, normalized QA EM \textbf{42.60\% $\rightarrow$ 14.98\%}, and answerability macro-F1 \textbf{0.6004 $\rightarrow$ 0.2362}. Empty predictions rose from 391 to 1,008, and incorrect refusals rose from 282 to 863. The results show strong dependence on the question's \emph{presence}, but do not establish robust understanding of subtle differences in meaning. Replacing a question with an empty string also changes the input distribution.
+
+More precisely, 654 outputs changed from non-empty to empty and only 37 from empty to non-empty; 110 remained non-empty in both conditions, and 354 remained empty. Of the 110 where both runs returned an answer, 75 produced different answer text. Changes occurred across Arabic (259/415), Korean (253/356), and Telugu (254/384). In some cases the original correct span disappeared entirely: for example, ``Python'' for the Korean OpenStack programming-language question and ``.eg'' for the Telugu Egypt-domain question became empty. These are illustrative examples, not a mechanistic explanation.
+
+
+\section{Extensions and Limitations}
+
+\subsection{W43: Question-Conditioning Ablation}
+
+\textbf{Hypothesis:}
+Removing the question from the input will reduce
+answer-extraction performance, indicating that
+the BIO model depends on question information
+when identifying answer spans.
+
+\textbf{Implementation:}
+I reused the frozen W37 XLM-RoBERTa BIO model
+(seed 123) and evaluated all 1,155 validation
+examples. Each original question was replaced
+with an empty string while the English context,
+model weights, gold annotations, and decoding
+procedure remained unchanged. No retraining or
+threshold tuning was performed.
+
+\textbf{Results:}
+Answer-token micro-F1 decreased from 41.44\%
+to 4.14\%, while normalized QA exact match
+fell from 42.60\% to 14.98\%. Answerability
+macro-F1 decreased from 0.6004 to 0.2362.
+Overall, 766 of 1,155 predictions changed,
+and empty predictions increased from 391
+to 1,008.
+
+\textbf{Analysis:}
+The results support the hypothesis that the
+model depends strongly on the presence of the
+question. However, the paired challenge set
+showed that the model often returned identical
+answers despite changes in question meaning.
+Therefore, sensitivity to question presence
+does not establish reliable understanding of
+question semantics. Removing the entire question
+also introduces an input-distribution shift.
+
+
+\textbf{Limitations:} W37 performance varies across seeds, 16 training spans were excluded by truncation, and two Arabic validation answers remained outside the model window. The shared integrated reader's selected validation checkpoint/threshold and our analyses are not independent held-out results. W38's high unknown-token fraction complicates interpretation of question-level perplexity. The challenge set has only 30 hand-crafted questions. It's zero-shot Chinese questions are topic-confounded. In the empty-question ablation, altered token positions may contribute to the performance loss. No direct causal attribution to language, model architecture, or decoding alone is justified by these comparisons.
+
+\section{Conclusion}
+Simple lexical overlap is unsuitable for this cross-lingual task. The trained BIO model extracts some answer spans but frequently misses supported answers or produces invalid start tags. The integrated QA model performs better on paired validation examples, especially by reducing false abstentions. On Korean questions, the fixed interpolated trigram did not surpass the simpler bigram, and a high unknown-token rate makes apparently strong per-question scores misleading. Finally, the paired challenge questions and question-removal ablation together show that dependence on having a question is not the same as responding correctly to its meaning. Reliable multilingual QA must be evaluated for both extraction accuracy and appropriate refusal.
+
+\balance
+
+\section{Declaration of the Use of Generative AI}
+
+\textbf{Tool and purpose.}
+ChatGPT was used to assist with generating and improving Python code, debugging implementation issues, explaining modelling and evaluation procedures, and analysing experimental results. It was also used for project planning and preparing preliminary individual findings reports and working notes.
+
+\textbf{Work phase and further use of outputs.}
+AI assistance was used during the development and evaluation of the BIO pipeline, Korean language model, integrated QA comparisons, question-conditioning ablation, and challenge-set evaluation. Suggested code was reviewed, adapted, and tested locally. Experimental findings were checked against saved predictions and actual evaluation outputs. AI-assisted reports served as preliminary working materials, while the final group report was prepared collaboratively.
+
+
+\section{Contribution Statement}
+\begin{itemize}
+\item \textbf{W37:} Extended Haoyang Sun's initial BIO preprocessing, repaired token/answer alignment, implemented multilingual XLM-RoBERTa token classification, ran three-seed evaluation, and investigated missing start labels and an exploratory decoding fallback.
+
+\item \textbf{W38:} Designed and implemented a Korean
+interpolated trigram language model using add-$k$
+smoothing and fixed interpolation weights.
+Investigated a single hypothesis: whether the
+interpolated trigram would achieve lower validation
+perplexity than the bigram baseline. Compared model
+performance, analysed unknown-token effects,
+inspected the five highest- and lowest-perplexity
+questions, and examined selected n-gram transition
+counts.
+
+\item \textbf{W40--41:} Aligned the BIO predictions with Haoyang Sun's integrated QA predictions and analysed paired extraction, answerability, and selected error cases.
+\item \textbf{W43--44:} Contributed five challenge pairs, evaluated the frozen BIO model on the combined group set, and ran the empty-question ablation with matched validation records.
+\end{itemize}
+
+\section*{Reproducibility Appendix}
+
+\subsection*{Environment and Dataset}
+Experiments were conducted locally using Python,
+PyTorch, and Hugging Face Transformers. The W37
+BIO model was trained using Apple's MPS backend.
+The pretrained checkpoint was
+\texttt{FacebookAI/xlm-roberta-base}.
+
+We used the provided training and validation splits
+from the \texttt{coastalcph/tydi\_xor\_rc} dataset.
+The multilingual experiments covered Arabic,
+Korean, and Telugu, comprising 6,335 training
+and 1,155 validation examples. Week 38 used
+only Korean questions (2,422 training and 356
+validation examples).
+
+\subsection*{Model Configuration}
+The W37 BIO classifier used three labels:
+O, B-ANS, and I-ANS. Training configurations
+were as follows:
+
+\begin{itemize}
+    \item Maximum sequence length: 384 tokens.
+    \item Batch size: 4.
+    \item Epochs: 2.
+    \item Optimizer: AdamW.
+    \item Learning rate: $2 \times 10^{-5}$.
+    \item Random seeds: 42, 7, and 123.
+\end{itemize}
+
+Sixteen training examples whose complete answer
+spans were truncated were excluded, leaving 6,319
+training examples. All validation examples were
+retained.
+
+For W38, the Korean language models used
+whitespace tokenization, add-$k$ smoothing
+($k=0.1$), and a shared vocabulary of 1,126
+prediction types. The interpolated trigram used
+fixed weights of 0.15, 0.35, and 0.50 for
+unigram, bigram, and trigram probabilities,
+respectively.
+
+\subsection*{Evaluation and Verification}
+The W37 model was evaluated using pooled
+answer-token micro-F1, exact character-span
+match, normalized SQuAD-style EM and token F1,
+and answerability macro-F1.
+
+The original BIO decoder was retained for
+primary evaluation. Experimental decoding
+modifications were evaluated separately.
+
+For the W40--41 comparison, W37 seed-123
+predictions were aligned with the integrated
+QA seed-44 predictions using validation IDs.
+All 1,155 records were checked for matching
+questions, contexts, gold answers, and labels.
+
+\subsection*{Extension and Challenge Evaluation}
+The W43 question-conditioning ablation reused
+the frozen W37 seed-123 checkpoint. Questions
+were replaced with empty strings while contexts,
+model weights, labels, and decoding rules
+remained unchanged.
+
+The W43--44 challenge evaluation used the
+combined 15-pair (30-question) group dataset.
+The challenge set was validated using
+\texttt{validate\_challenge.py}. No retraining
+or threshold tuning was performed on the
+challenge examples.
+
+\subsection*{Saved Artifacts}
+The principal saved prediction files include
+\texttt{w37\_bio\_seed123\_original.csv} and
+\texttt{validation\_predictions.csv}.
+The combined challenge set is stored as
+\texttt{Group25\_Challenge.json}.
+
+The experiments use the supplied validation
+split for model comparison and diagnostic
+analysis; reported validation results should
+not be interpreted as independent held-out
+test performance.
+
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+\end{document}
+
