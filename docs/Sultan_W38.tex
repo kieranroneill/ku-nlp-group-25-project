@@ -1,0 +1,106 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,margin=0.72in]{geometry}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\usepackage{amsmath}
+\usepackage{array,tabularx}
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\setmainfont{DejaVu Sans}
+\setCJKmainfont{Noto Sans CJK KR}
+\setCJKmonofont{Noto Sans CJK KR}
+\xeCJKsetup{CJKspace=true}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.10}
+\setlist[itemize]{leftmargin=1.5em,topsep=1pt,itemsep=1pt,parsep=0pt}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\sectionline}[1]{\vspace{2pt}{\large\bfseries #1}\par\vspace{1pt}}
+\begin{document}
+\fontsize{9.7}{12.1}\selectfont
+\begin{center}
+{\Large\bfseries Week 38 -- Korean Language Modelling}\par
+\end{center}
+\vspace{-8pt}
+
+\sectionline{Quick summary}
+I implemented an interpolated trigram language model for Korean questions and compared it with a unigram baseline and our existing add-$k$ bigram. The question was: \emph{does looking at two previous words make the next word easier to predict than looking at just one?}
+
+\textbf{Main finding:} Not with the fixed settings I tried. The bigram reached 24.36 perplexity and the interpolated trigram reached 26.70 (lower is better). Also, 38.29\% of validation text tokens mapped to \texttt{<UNK>}, which makes some apparently excellent question-level scores misleading.
+
+\sectionline{1. What I implemented}
+The original bigram predicts using one previous token. A trigram uses two, potentially learning more specific question patterns but also producing sparser counts. I therefore mixed unigram, bigram and trigram probabilities rather than relying on a standalone trigram:
+\[
+\begin{aligned}
+P(w_i\mid w_{i-2},w_{i-1})
+={}&0.15P_{\rm uni}(w_i)+0.35P_{\rm bi}(w_i\mid w_{i-1})\\
+&+0.50P_{\rm tri}(w_i\mid w_{i-2},w_{i-1}).
+\end{aligned}
+\]
+The interpolation weights were fixed starting values, \emph{not} tuned on validation. Every component uses add-$k$ smoothing with $k=0.1$. The Python script prepares shared Korean data, counts training unigrams/bigrams/trigrams, scores all validation questions using the same vocabulary, checks probability normalisation and exports per-question scores. No neural or pretrained language model is used here.
+
+\sectionline{2. Data and evaluation}
+\begin{itemize}
+\item \textbf{Data:} 2,422 Korean training questions and 356 Korean validation questions; contexts are not used in W38.
+\item \textbf{Tokenisation:} Whitespace splitting, keeping attached punctuation. Training tokens occurring fewer than twice, and unseen validation tokens, become \texttt{<UNK>}.
+\item \textbf{Vocabulary:} 1,126 prediction types including \texttt{<UNK>} and \texttt{<EOS>}. \texttt{<BOS>} is history only; the trigram uses two \texttt{<BOS>} markers.
+\item \textbf{Metric:} Corpus-level token perplexity, pooling log probabilities across 1,729 question tokens and 356 \texttt{<EOS>} targets, or 2,085 scored targets. We do not score \texttt{<BOS>} or average individual question perplexities.
+\end{itemize}
+
+\sectionline{3. Explicit hypotheses and results}
+\begin{itemize}
+\item \textbf{Unigram baseline:} Ignoring preceding words should produce worse perplexity than a model that captures repeated question-word transitions. \emph{Supported against bigram:} 46.5771 vs. 24.3639.
+\item \textbf{Bigram:} Using the previous word should improve over unigram, especially for common Korean question endings and other repeated two-word patterns. \emph{Supported overall:} 24.3639 perplexity.
+\item \textbf{My interpolated trigram:} Using up to two previous words, with lower-order probabilities as backup, should improve on the bigram. \emph{Not supported:} 26.6954 vs. 24.3639; about 9.6\% higher perplexity.
+\end{itemize}
+\textbf{Possible explanation:} Three-token combinations have fewer observations, so the chosen weights may give too much weight to sparse trigram estimates. I have \emph{not} measured unseen-validation-trigram coverage, so this remains a hypothesis rather than a confirmed cause.
+
+\newpage
+\sectionline{4. Actual validation questions, not just indices}
+The tables below show the \textbf{five lowest and five highest interpolated-trigram perplexities} in the \emph{unfiltered} 356-question validation set. IDs are retained only to make the CSV rows easy to locate. Each question appears in original Korean with an English translation. The UNK column counts mapped question tokens, excluding \texttt{<EOS>}.
+
+\textbf{Five lowest-perplexity questions}
+\begin{center}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}rYcr@{}}
+\hline
+\emph{ID} & \emph{Korean question; English translation} & \emph{UNK} & \emph{PPL}\\
+\hline
+203 & 로마에 에트루리아인 왕조는 몇년간 로마를 지배했나요?\newline \emph{For how many years did the Etruscan dynasty rule Rome?} & 6/6 & 3.95\\
+53 & 미국은 주마다 법이 다른가?\newline \emph{Do laws differ from state to state in the United States?} & 4/4 & 4.08\\
+198 & 불고기는 소의 어느부위를 사용하는가?\newline \emph{Which part of the cow is used for bulgogi?} & 4/4 & 4.08\\
+115 & 소아마비 바이러스의 증상은?\newline \emph{What are the symptoms of poliovirus infection?} & 3/3 & 4.20\\
+154 & 인도네시아에서는 동성결혼이 합법적인가?\newline \emph{Is same-sex marriage legal in Indonesia?} & 3/3 & 4.20\\
+\hline
+\end{tabularx}
+\end{center}
+
+\textbf{Five highest-perplexity questions}
+\begin{center}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}rYcr@{}}
+\hline
+\emph{ID} & \emph{Korean question; English translation} & \emph{UNK} & \emph{PPL}\\
+\hline
+73 & 성경은 언제 쓰여졌는가?\newline \emph{When was the Bible written?} & 0/3 & 259.66\\
+347 & 명나라는 현재의 어느 나라인가?\newline \emph{Which present-day country corresponds to the Ming dynasty?} & 1/4 & 212.39\\
+191 & 미국에서 제일 작은 면적의 주는 어디인가요?\newline \emph{Which U.S. state has the smallest area?} & 1/6 & 206.92\\
+125 & 남아프리카 공화국의 개국일은 언제인가?\newline \emph{When was South Africa founded?} & 1/4 & 191.56\\
+163 & 십자군 전쟁은 총 몇차례 일어났는가?\newline \emph{How many Crusades took place in total?} & 1/5 & 184.38\\
+\hline
+\end{tabularx}
+\end{center}
+
+\sectionline{5. What these examples tell us}
+\begin{itemize}
+\item \textbf{Unknown words can look easy:} All five lowest-scoring questions become entirely \texttt{<UNK>}. In question 203 the bigram PPL is \textbf{3.8906} (the value missing from the team's earlier report), and my interpolated-trigram PPL is \textbf{3.9540}. These scores reflect predictable mapped UNK patterns, \emph{not} prediction of the original Korean words.
+\item \textbf{Known words can still be difficult:} Question 73 has 0/3 unknown tokens but the highest trigram PPL (259.66). Alex's bigram transition inspection found an unseen adjacent-token pair in this question. The sequence can therefore be surprising even when the tokens themselves are known.
+\item \textbf{Training counts back up the bigram analysis:} For question 203, the bigram \texttt{<UNK>} $\rightarrow$ \texttt{<UNK>} occurred 992 times with 3,285 occurrences of its history. For question 73 the observed bigram transition counts were 3, 0, 1 and 2. Those counts concern the \emph{bigram}; we did not calculate analogous trigram-transition statistics.
+\item \textbf{Filtered examples are only additional diagnostics:} For comparison, the familiar ``largest army in the world'' question (ID 66, PPL 4.82) has just 1/5 unknown tokens. This is \emph{not} one of the five lowest unfiltered questions. ID 299 duplicates ID 66, and both remain in the official validation scores.
+\end{itemize}
+
+ Our interpolated trigram did not beat the simpler bigram, and a 662/1,729 (38.29\%) unknown-token rate complicates how we interpret question perplexities. The full \emph{group} W38 comparison still needs Kieran's separate model so that we have three models plus the baseline; this document reports my part and its shared comparators.
+
+\end{document}

@@ -1,0 +1,116 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,margin=0.72in]{geometry}
+\usepackage{fontspec}
+\usepackage{array,tabularx,booktabs}
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\setmainfont{DejaVu Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=0.81]
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.14}
+\setlist[itemize]{leftmargin=1.5em,topsep=2pt,itemsep=1pt,parsep=0pt}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\sectionline}[1]{\vspace{5pt}{\large\bfseries #1}\par\vspace{1pt}}
+\begin{document}
+\fontsize{9.45}{12.1}\selectfont
+\begin{center}
+{\Large\bfseries W40--41: Comparison with our W37 BIO model}\\[3pt]
+{\small Group 25 working notes | W37 seed 123 vs integrated QA seed 44 | 1,155 validation questions}
+\end{center}
+\vspace{-8pt}
+
+\sectionline{Quick summary}
+I compared our frozen W37 BIO predictions with Alex's W40--41 integrated QA predictions \emph{question by question}, rather than relying on two unrelated sets of summary statistics. The integrated QA model did better on both answer extraction and deciding when to return nothing. Its normalized exact match increased from 42.60\% to 55.84\%, while answerability macro-F1 increased from 0.6004 to 0.8550. The main practical improvement was fewer false abstentions: 282 in W37 versus 39 in W40--41. However, W37 was still uniquely correct on 63 questions, and both models failed exact match on 447.
+
+\sectionline{1. How the comparison was done}
+We aligned W37's \texttt{outputs/w37\_bio\_seed123\_original.csv} and Alex's seed-44 \texttt{validation\_predictions.csv} using their validation IDs. All 1,155 IDs matched one-to-one, with identical language, question, context, gold answer, gold offset and gold answerability label. Both models therefore face exactly the same examples. We compare \emph{SQuAD-style normalized} exact match and answer-token text F1, and macro-F1 of binary answerability. W37's required BIO \emph{micro-F1 over context tokens} is a different metric (41.44\%) and must not be confused with SQuAD token F1 (48.56\%).
+
+Alex's report also presents mean and standard deviation from W40--41 seeds 42, 43 and 44. This matched comparison uses only the saved \emph{seed-44} predictions; it does not pretend that the W37 seed-123 run and the W40--41 seed-44 run have identical training/selection procedures.
+
+\sectionline{2. Actual validation results}
+\begin{center}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{QA EM (\%)} & \multicolumn{2}{c}{QA token F1 (\%)} & \multicolumn{2}{c}{Answerability macro-F1}\\
+Group ($n$) & W37 & W40--41 & W37 & W40--41 & W37 & W40--41\\
+\midrule
+Overall (1155) & 42.60 & \textbf{55.84} & 48.56 & \textbf{65.11} & .6004 & \textbf{.8550}\\
+Arabic (415) & 45.78 & \textbf{57.59} & 51.64 & \textbf{67.12} & .6430 & \textbf{.9288}\\
+Korean (356) & 44.10 & \textbf{58.43} & 50.59 & \textbf{69.00} & .5450 & \textbf{.8146}\\
+Telugu (384) & 37.76 & \textbf{51.56} & 43.35 & \textbf{59.32} & .5798 & \textbf{.8006}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Exact-match outcomes, same 1,155 questions & Count & Meaning\\
+\midrule
+Both correct & 429 & Agreement on success\\
+W40--41 correct; W37 wrong & \textbf{216} & Integrated QA fixes W37\\
+W37 correct; W40--41 wrong & \textbf{63} & BIO still wins on some cases\\
+Both wrong & 447 & Shared unsolved examples\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\sectionline{3. Answerability: where the biggest gain came from}
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Outcome & W37 BIO & W40--41 QA\\
+\midrule
+Correctly answers when an answer exists (TP) & 709 & 952\\
+Correctly abstains when no answer exists (TN) & 109 & 122\\
+Unsupported answer returned (FP) & 55 & 42\\
+Incorrectly refuses an answerable question (FN) & \textbf{282} & \textbf{39}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The W40--41 model recovered many of the genuine answers that W37 missed without increasing its rate of unsupported answers. This improvement is not just about better-looking answer spans: its \emph{answer-or-abstain decision} was also much more reliable for this validation run.
+
+\newpage
+\sectionline{4. Manual error analysis: 12 W40--41 errors}
+I deliberately selected four errors each from Arabic, Korean and Telugu. The four failure categories (false answer, false empty, wrong entity, and span length) have three examples each \emph{in this selected sample}; those counts are not population-level failure frequencies. The original-language questions, complete contexts and exact predictions are preserved in the accompanying review CSV. The question descriptions below are approximate English glosses.
+
+\vspace{2pt}
+\begin{tabularx}{\linewidth}{@{}l p{1.5cm} Y p{3.0cm}@{}}
+\toprule
+Case & Category & Question / evidence & W37 $\rightarrow$ W40--41\\
+\midrule
+AR 981 & False answer & Asked about Angola, but passage describes Mongols in Syria. & empty $\rightarrow$ Crusaders/Mamluks\\
+AR 752 & False empty & Paul is called an ``apostle'' in context. & empty $\rightarrow$ empty\\
+AR 644 & Wrong entity & First president of Yemen is Ali Abdullah Saleh; QA chose the second president. & Saleh $\rightarrow$ Hadi\\
+AR 660 & Span length & Gold ``Alfred Victor''; both outputs include extra title/name words. & ``Alfred Victor, Comte'' $\rightarrow$ full name\\
+\midrule
+KO 398 & False answer & Passage says some states have no capital but gives no count. & empty $\rightarrow$ ``no capital''\\
+KO 438 & False empty & Passage explicitly states Indonesia does not recognize same-sex marriage. & empty $\rightarrow$ empty\\
+KO 302 & Wrong entity & Director Waris Hussein confused with actor William Hartnell. & Hartnell $\rightarrow$ Hartnell\\
+KO 294 & Span length & Gold is city ``Seoul''; both produce the longer district/address. & full address $\rightarrow$ full address\\
+\midrule
+TE 1062 & False answer & Asks for B. Gopal's parents; passage mentions another person's wife. & empty $\rightarrow$ ``Michaela''\\
+TE 74 & False empty & Context explicitly identifies Russia as largest country by area. & Russia $\rightarrow$ empty\\
+TE 0 & Wrong entity & Portland is Oregon's largest city; QA picked Seattle, also mentioned in passage. & Portland $\rightarrow$ Seattle\\
+TE 3 & Span length & Gold is just ``1914''; both extract the 1914--1918 interval. & ``1914 to 1918'' $\rightarrow$ same\\
+\bottomrule
+\end{tabularx}
+
+\vspace{2pt}
+The most common distinction in these examples is between \emph{finding a related phrase} and \emph{answering the specific question}. Wrong entities and overly long spans are different failures from false abstention or giving an unsupported answer. One caution: the Arabic Paul example involves a distinction between ``an apostle'' and ``one of the Twelve'', so its semantics deserve careful wording even though the gold span is valid.
+
+\sectionline{5. Six cases W40--41 fixed (two per language)}
+\begin{itemize}
+\item \textbf{Arabic:} \#677 (first human in space), W37 empty $\rightarrow$ W40 ``Yuri Gagarin''; \#670 (first Monkees album), W37 ``The'' $\rightarrow$ W40 ``The Monkees''.
+\item \textbf{Korean:} \#308 (six schools of Hindu philosophy), W37 empty $\rightarrow$ W40 full six-name list; \#293 (baseball player's last game), W37 ``September 20'' $\rightarrow$ W40 ``September 28''.
+\item \textbf{Telugu:} \#4 (World War I start), W37 ``28'' $\rightarrow$ W40 ``28 July 1914''; \#11 (India's largest rice-producing state), W37 ``India'' $\rightarrow$ W40 ``West Bengal''.
+\end{itemize}
+
+\sectionline{My two cents and limitations}
+The integrated model is clearly better on these matched validation questions, especially at avoiding missed answers, but this is not evidence that it always wins: W37 gets 63 examples right that W40--41 misses. We have \emph{not} established why the architectures differ internally, and some exact-match failures are boundary/granularity issues rather than entirely wrong meanings. Alex selected the integrated QA checkpoint and its no-answer threshold on validation; these are development results, not a held-out test. For the final report we should show the three-seed W40--41 summary alongside this clearly labelled seed-44 paired inspection, and condense the representative errors without dropping the analysis.
+
+\end{document}

@@ -1,0 +1,570 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.1cm]{geometry}
+% Compile with XeLaTeX in Overleaf.
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\newfontfamily\arabicfont[Script=Arabic]{Noto Naskh Arabic}
+\newfontfamily\koreanfont{Noto Serif CJK KR}
+\newfontfamily\telugufont[Script=Telugu]{Noto Serif Telugu}
+\usepackage{booktabs,tabularx,array,amsmath,enumitem}
+\usepackage[hidelinks]{hyperref}
+% XeTeX bidirectional support for short Arabic tokens in LTR tables.
+\TeXXeTstate=1
+\newcommand{\AR}[1]{{\arabicfont\beginR #1\endR}}
+\newcommand{\KO}[1]{{\koreanfont #1}}
+\newcommand{\TE}[1]{{\telugufont #1}}
+\setlist[itemize]{nosep,leftmargin=*}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\newcommand{\unk}{\texttt{<UNK>}}
+\newcommand{\bos}{\texttt{<BOS>}}
+\newcommand{\eos}{\texttt{<EOS>}}
+\title{NLP Project Progress: Weeks 36--39}
+\author{Haoyang Sun}
+\date{2 October 2026}
+\begin{document}
+\maketitle
+
+\section{Scope and current status}
+This is a progress note, organised by task rather than the structure of the final report. It separates implemented work, observed results, and hypotheses requiring further experiments. Results refer to my independent implementation, before comparison with the group.
+
+The dataset is \texttt{coastalcph/tydi\_xor\_rc}, restricted to Arabic (ar), Korean (ko), and Telugu (te). Questions are in these languages; contexts are in English. The current experiments use the existing training and validation splits. No held-out test result is reported here.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Task & Status \\
+\midrule
+W36 & Data statistics, frequent tokens, span integrity checks, and majority-class baseline completed. Deterministic rule-based baseline pending. \\
+W37 & Character-span/BIO conversion and ten round-trip checks completed. Explicit boundary tests and question-conditioned sequence labeller pending. \\
+W38 & My Korean bigram language model and high-/low-perplexity analysis completed. Comparison with the group's models and shared baseline pending. \\
+W39 & Logistic-regression classifier, shared evaluation, coefficient inspection, and prediction-table preparation completed. Recurrent classifier and manual comparative error analysis pending. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection*{Dataset overview}
+
+The original dataset contains two main experimental splits:
+15,343 training examples and 3,011 validation examples,
+giving 18,354 examples in total across these two splits.
+The repository also contains a separate test split with only
+four English examples; this is not used for our multilingual
+evaluation.
+
+After retaining the three required question languages
+--- Arabic (ar), Korean (ko), and Telugu (te) ---
+my working dataset has the following size:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Split & Number of examples \\
+\midrule
+Training & 6,335 \\
+Validation & 1,155 \\
+\midrule
+Total & 7,490 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each row represents one question--context example and contains
+seven columns:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Column & Meaning \\
+\midrule
+\texttt{lang}
+& Language of the question. \\
+
+\texttt{question}
+& The question to be answered. \\
+
+\texttt{context}
+& The English passage used to answer the question. \\
+
+\texttt{answerable}
+& Boolean label indicating whether the example has an
+extractable answer in the supplied context. \\
+
+\texttt{answer\_start}
+& Zero-based character position at which the answer starts;
+$-1$ for unanswerable examples. \\
+
+\texttt{answer}
+& The English answer span for answerable examples.
+For unanswerable examples, the raw field may contain
+a nonempty value such as ``yes'' or ``no''. \\
+
+\texttt{answer\_inlang}
+& An optional answer in the question's language,
+available for only some examples. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{W36: Data inspection and initial baseline}
+\subsection{Counts, class balance, and text lengths}
+\textbf{Implementation.} I loaded the locally saved dataset, converted the two splits to pandas DataFrames, and grouped each split by language. Within each of the six groups, I counted examples and answerability labels. Question and context lengths were measured using whitespace tokenisation, \texttt{text.split()}. I computed the median, first and third quartiles, and $\mathrm{IQR}=Q_3-Q_1$ for each length distribution.
+
+\begin{center}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Split & Language & Examples & Answerable & Unanswerable & Unans. (\%) \\
+\midrule
+Train & ar & 2558 & 2303 & 255 & 9.97 \\
+Train & ko & 2422 & 2359 & 63 & 2.60 \\
+Train & te & 1355 & 1310 & 45 & 3.32 \\
+Validation & ar & 415 & 363 & 52 & 12.53 \\
+Validation & ko & 356 & 337 & 19 & 5.34 \\
+Validation & te & 384 & 291 & 93 & 24.22 \\
+\midrule
+Train, all & & 6335 & 5972 & 363 & 5.73 \\
+Validation, all & & 1155 & 991 & 164 & 14.20 \\
+Combined & & 7490 & 6963 & 527 & 7.04 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{llrrrrrrrr}
+\toprule
+& & \multicolumn{4}{c}{Question length} & \multicolumn{4}{c}{Context length} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+Split & Lang. & $Q_1$ & Median & $Q_3$ & IQR & $Q_1$ & Median & $Q_3$ & IQR \\
+\midrule
+Train & ar & 5 & 6 & 8 & 3 & 59 & 89 & 127 & 68 \\
+Train & ko & 4 & 5 & 6 & 2 & 57 & 84 & 120 & 63 \\
+Train & te & 5 & 6 & 7 & 2 & 53 & 80 & 112 & 59 \\
+Validation & ar & 5 & 6 & 8 & 3 & 59.5 & 87 & 122.5 & 63 \\
+Validation & ko & 4 & 5 & 6 & 2 & 52 & 84 & 123 & 71 \\
+Validation & te & 5 & 6 & 7 & 2 & 75 & 100 & 138 & 63 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning.} Answerability is strongly imbalanced, so accuracy alone is insufficient. The unanswerable proportion increases from 5.73\% in training to 14.20\% in validation. Telugu has the largest change, from 3.32\% to 24.22\%, and its median context length increases from 80 to 100 tokens. These observed differences may help explain later performance differences, but do not by themselves establish a cause. Question-length medians and IQRs remain unchanged within each language. Whitespace token counts are operational measurements, not linguistically equivalent units across languages.
+
+\subsection{Missing values and exact duplicates}
+\textbf{Implementation.} I checked missing values and whitespace-only/empty strings separately in every column. Exact duplicates were defined using the question--context pair, within each split--language group. I counted both extra duplicate rows after retaining the first occurrence and all rows belonging to duplicate groups.
+
+\textbf{Results.} All columns except \texttt{answer\_inlang} have zero missing values; all columns have zero blank strings. The optional field has the following availability:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+Split & Language & Missing \texttt{answer\_inlang} & Available \\
+\midrule
+Train & ar & 2558 & 0 \\
+Train & ko & 2422 & 0 \\
+Train & te & 1305 & 50 \\
+Validation & ar & 415 & 0 \\
+Validation & ko & 356 & 0 \\
+Validation & te & 284 & 100 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Only Korean training data contains duplicate pairs: 10 extra rows and 20 rows in duplicate groups, consistent with ten pairs each appearing twice. Every other group has zero exact duplicate pairs.
+
+\textbf{Meaning and follow-up.} Missing \texttt{answer\_inlang} is expected for an optional annotation and does not indicate that question/context inputs are incomplete. Duplicate pairs can give some examples extra training weight; I have identified them but do not claim to have removed them or checked their label agreement. The within-group duplicate check does not establish that training and validation are disjoint: a cross-split overlap check remains a separate question for the group.
+
+\subsection{Most frequent training question tokens}
+\textbf{Implementation.} For each language, I tokenised training questions with \texttt{split()}, pooled token occurrences, counted each distinct token, and selected the five highest counts. Validation questions were not used. Punctuation was not removed or separated automatically.
+
+\textbf{Results.} The following table preserves the original script tokens. English glosses are brief interpretations and can be context-dependent. Arabic tokens are typeset right-to-left within their cells; the table and counts remain left-to-right.
+% Original tokens, in rank order:
+% ar: ؟ | في | من | متى | ما
+% ko: 가장 | 무엇인가? | 언제 | 몇 | 어디인가?
+% te: ? | ఎవరు? | ఎన్ని | ఎప్పుడు | ఏ
+\begin{center}
+\small
+\begin{tabular}{llrl}
+\toprule
+Language & Original token & Count & English gloss \\
+\midrule
+ar & \AR{؟} & 1054 & punctuation \\
+ar & \AR{في} & 592 & in \\
+ar & \AR{من} & 584 & from / who (context-dependent) \\
+ar & \AR{متى} & 535 & when \\
+ar & \AR{ما} & 441 & what (context-dependent) \\
+\midrule
+ko & \KO{가장} & 527 & most \\
+ko & \KO{무엇인가?} & 495 & what is it? \\
+ko & \KO{언제} & 336 & when \\
+ko & \KO{몇} & 234 & how many / which number \\
+ko & \KO{어디인가?} & 228 & where is it? \\
+\midrule
+te & ? & 260 & punctuation \\
+te & \TE{ఎవరు?} & 186 & who? \\
+te & \TE{ఎన్ని} & 161 & how many \\
+te & \TE{ఎప్పుడు} & 151 & when \\
+te & \TE{ఏ} & 142 & which \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning and further inspection.} Frequent tokens include question words and punctuation. Standalone question marks being highly frequent is partly a tokenisation effect: whitespace splitting preserves an isolated mark as a token but keeps attached punctuation with a word. Arabic right-to-left rendering made token/count positions look reversed in console output; this display issue should not be confused with a counting error.
+
+\subsection{Answer-span integrity}
+\textbf{Implementation.} For each answerable example in both splits, I verified
+\[
+\texttt{context[start : start + len(answer)] == answer}.
+\]
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Split & Checked & Failed \\
+\midrule
+Train & 5972 & 0 \\
+Validation & 991 & 0 \\
+Total & 6963 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{Meaning.} Every checked answer text matches its annotated character slice. This supports using character offsets for BIO conversion. It does not prove that every answer aligns with the boundaries of a chosen tokenizer or that every annotation is semantically correct.
+
+\subsection{Baseline 1: majority-class answerability}
+\textbf{Implementation.} The majority label was selected from training labels only. Since 94.27\% are answerable, the baseline predicts answerable for every validation example. Evaluation reports macro-F1 and precision/recall/F1 for both classes, overall and by language. Undefined precision for the never-predicted class is reported as zero.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+& & \multicolumn{3}{c}{Answerable} & \multicolumn{3}{c}{Unanswerable} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Group & Macro-F1 & P & R & F1 & P & R & F1 \\
+\midrule
+Overall & .4618 & .8580 & 1.0000 & .9236 & .0000 & .0000 & .0000 \\
+ar & .4666 & .8747 & 1.0000 & .9332 & .0000 & .0000 & .0000 \\
+ko & .4863 & .9466 & 1.0000 & .9726 & .0000 & .0000 & .0000 \\
+te & .4311 & .7578 & 1.0000 & .8622 & .0000 & .0000 & .0000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning.} Overall accuracy is 85.80\%, derived directly from the validation class counts, despite detecting no unanswerable examples. Macro-F1 of 0.4618 exposes this weakness and provides a reference for W39.
+
+\subsection{Baseline 2: deterministic lexical-overlap rule classifier}
+
+\textbf{Implementation.}
+Before comparison, both texts are normalised with Unicode NFC normalisation and case folding. It is then tokenised using a Unicode-aware regular expression that extracts word-character sequences while excluding punctuation. 
+
+\noindent 
+For each example, let $Q$ be the set of distinct question tokens and $C$ the set of distinct context tokens. The classifier computes the number of shared tokens,
+\[
+s = |Q \cap C|.
+\]
+It predicts answerable if $s \geq 1$, and unanswerable otherwise:
+\[
+    \hat{y} =
+        \begin{cases}
+            \text{answerable}, & \text{if } |Q \cap C| \geq 1, \\
+            \text{unanswerable}, & \text{otherwise.}
+        \end{cases}
+\]
+The threshold of one shared token is fixed before the labeled validation evaluation. Repeated tokens are counted only once because and punctuation-only tokens, including question marks, do not create an overlap.
+
+\textbf{Results.}
+The deterministic rule obtains an overall accuracy of 0.1524 and macro-F1 of 0.1408 (Table~\ref{table:week_36_baseline_results}). It has unanswerable recall of 0.9451 but answerable recall of only 0.0212. The same pattern occurs for all three languages, although Telugu has the highest macro-F1 (0.2265).
+
+\begin{table}[!h]
+    \centering
+    \small
+    \begin{tabular}{lrrrrrrrrr}
+        \toprule
+        & & & &
+        \multicolumn{3}{c}{Answerable}
+        & \multicolumn{3}{c}{Unanswerable} \\
+        \cmidrule(lr){5-7}\cmidrule(lr){8-10}
+        Group & $N$ & Accuracy & Macro-F1
+        & P & R & F1
+        & P & R & F1 \\
+        \midrule
+            Overall & 1155 & 0.1524 & 0.1408 & 0.7000 & 0.0212 & 0.0411 & 0.1378 & 0.9451 & 0.2405 \\
+            ar & 415 & 0.1398 & 0.1291 & 1.0000 & 0.0165 & 0.0325 & 0.1271 & 1.0 & 0.2256 \\
+            ko & 356 & 0.0562 & 0.0547 & 0.6000 & 0.0089 & 0.0175 & 0.0484 & 0.8947 & 0.0919 \\
+            te & 384 & 0.2552 & 0.2265 & 0.6316 & 0.0412 & 0.0774 & 0.2356 & 0.9247 & 0.3755 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Validation results for the deterministic lexical-overlap answerability rule. P, R, and F1 denote precision, recall, and F1, respectively. Macro-F1 is the unweighted mean of the answerable and unanswerable F1 scores.}
+    \label{table:week_36_baseline_results}
+\end{table}
+
+\textbf{Meaning.}
+As we can see, this rule has high recall for unanswerable examples primarily because it lacks lexical evidence for most question/context pairs. Questions are in Arabic, Korean, or Telugu while contexts are English, so direct word overlap is rarely captured in translation equivalent terms. Therefore, this rule incorrectly rejects most answerable examples. 
+
+\noindent
+It can only exploit surface forms shared across languages, such as Latin-script names and some numbers. It also produces false positives when an incidental shared surface token occurs although the context does not answer the question. This simple baseline clearly demonstrates why a cross-lingual answerability model needs a representation that can relate questions to English contexts.
+
+\section{W37: Character spans and BIO labels}
+\textbf{Implementation.} I adapted the Lab 2 tokeniser to return context tokens together with their original character offsets. The regular expression matches word sequences or individual non-whitespace punctuation characters. For an answerable example, I locate the tokens covered by the gold character span, check text consistency and token-boundary alignment, label the first answer token B-ANS and subsequent answer tokens I-ANS, and label all other tokens O.
+
+For unanswerable examples, all labels are O. The reverse function validates a single contiguous B-ANS/I-ANS span and uses the stored offsets to slice the original context. An all-O sequence returns the canonical empty result $(-1,\texttt{""})$. Thus reconstruction preserves the original text rather than joining token strings and potentially changing spacing.
+
+\textbf{Checks and result.} I sampled five answerable and five unanswerable training examples with a fixed random seed. All ten round-trip checks passed. Answerable checks compare both recovered start and text with the originals. Unanswerable checks verify all-O labels and the canonical empty result; they do not require reproducing a possible nonempty raw answer field.
+
+\textbf{Debugging completed.} The lab's reverse conversion originally returned \texttt{None} for an empty span. I changed this to $-1$ to match the project's representation and assertions.
+
+\textbf{Meaning and limitations.} Conversion is working on the ten selected examples. Explicit tests for start position zero, multi-token answers, and punctuation adjacency have not yet been conducted. Passing a small sample does not establish general boundary coverage. Exact character-slice agreement from W36 also does not guarantee token-boundary alignment.
+
+\textbf{Pending.} The question-conditioned sequence labeller is not completed. The current BIO labels are generated from gold answers, not predicted by a trained model. No learned token-F1 or exact-span score is available. My main difficulty is understanding and implementing the sequence model and how question information conditions each context-token prediction.
+
+\section{W38: Korean bigram language model}
+\subsection{Implementation and evaluation protocol}
+The group selected Korean as the shared language. My model is a bigram LM with add-$k$ smoothing, $k=0.1$, trained on all Korean training questions, regardless of answerability.
+\begin{itemize}
+\item Tokenisation: whitespace splitting, preserving case and attached punctuation.
+\item Vocabulary: training tokens with total frequency at least two, plus \unk{} and \eos{}. Rare training tokens and out-of-vocabulary validation tokens map to \unk{}.
+\item Boundaries: each question is processed separately as \bos{}, question tokens, \eos{}. \bos{} provides history but is excluded from prediction vocabulary and scoring. \eos{} is predicted and scored.
+\item Training: count each adjacent token pair and each preceding-token history, including boundary transitions.
+\end{itemize}
+For vocabulary size $V$, the conditional probability is
+\[
+P(w\mid h)=\frac{C(h,w)+k}{C(h)+kV}.
+\]
+Validation corpus perplexity is
+\[
+\mathrm{PPL}=\exp\left(-\frac{1}{N}\sum_{i=1}^{N}\log P(w_i\mid h_i)\right),
+\]
+where $N$ includes question tokens and one \eos{} per question. Corpus perplexity is computed from pooled log probabilities, not the arithmetic mean of question perplexities.
+
+\subsection{Observed results}
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Quantity & Value \\
+\midrule
+Training questions & 2422 \\
+Validation questions & 356 \\
+Prediction vocabulary size & 1126 \\
+Observed training bigram types & 3678 \\
+Validation text tokens, excluding boundaries & 1729 \\
+Validation \unk{} tokens & 662 \\
+Validation \unk{} rate & 38.29\% \\
+Scored tokens, including \eos{} & 2085 \\
+Mean negative log probability & 3.193102 \\
+Per-token validation perplexity & 24.3639 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning.} The model assigns probabilities successfully, but 24.3639 cannot yet be called strong or weak without the group's baseline and model results under the same protocol. The 38.29\% unknown rate means much lexical information is collapsed. A lower perplexity can partly reflect easier prediction after this collapse. Changing $k$ alone would not change the unknown rate. The vocabulary, tokenisation, unknown handling, and boundary scoring must remain shared for comparisons.
+
+\subsection{Further analysis: high- and low-perplexity questions}
+I scored each validation question separately, recording original text, mapped tokens, token count, unknown count/rate, and perplexity. I sorted these scores and inspected selected examples. Indices below refer to positions in the Korean-filtered validation list, not original full-dataset row IDs.
+
+\begin{center}
+\small
+\begin{tabular}{lrrl}
+\toprule
+Question index & Tokens & Unknown rate & Perplexity \\
+\midrule
+24, 64, 195 (each) & 3 & 66.67\% & 3.8087 \\
+19 & 2 & 50.00\% & 3.9460 \\
+203 & 6 & 100.00\% & Among the five lowest \\
+\midrule
+347 & 4 & 25.00\% & 390.5409 \\
+73 & 3 & 0.00\% & 380.8328 \\
+278 & 4 & 25.00\% & 341.9618 \\
+163 & 5 & 20.00\% & 309.0801 \\
+191 & 6 & 16.67\% & 283.2558 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The exact score for index 203 was clipped in the available output, so it is not transcribed.
+
+\textbf{Direct bigram evidence.} I printed each transition's training count, history count, and smoothed probability for indices 24, 203, and 73.
+\begin{itemize}
+\item Indices 24, 64, and 195 become the same sequence: two \unk{} tokens followed by the question-ending token \KO{무엇인가?}. Identical transformed sequences necessarily have identical perplexity. For index 24, $P(\unk{}\mid\bos{})=0.426537$, $P(\unk{}\mid\unk{})=0.292000$, and the final transition to \eos{} has probability 0.814845 (training counts 495/495 before smoothing).
+\item Index 203 becomes six \unk{} tokens. Its five internal transitions all use the same \unk{}--\unk{} probability, supported by a bigram count of 992 and a history count of 3285. This supports the interpretation that its low score reflects a common abstract pattern rather than knowledge of the original words.
+\item Index 73 contains no unknown tokens but has perplexity 380.8328. Its four transition counts are 3, 0, 1, and 2, with probabilities 0.001223, 0.000865, 0.002452, and 0.018325. Known individual words can still form rare or unseen bigrams.
+\end{itemize}
+
+\textbf{Smoothing effect.} Since $kV=112.6$, smoothing strongly affects rare histories. At the last transition of index 73, the successor \eos{} accounts for both observed occurrences, but the smoothed probability is only $(2+0.1)/(2+112.6)=0.018325$. This explains one source of the high score; it does not establish that decreasing $k$ would improve overall validation performance.
+
+\textbf{Pending.} Compare against the group's simple baseline and other configurations using identical questions and preprocessing. Current results and settings are retained pending that comparison.
+
+\section{W39: Learned answerability classification}
+\subsection{Model 1: implementation}
+I trained one pooled logistic-regression classifier on all three languages. Its input combines:
+\begin{itemize}
+\item Separate question and context TF-IDF vectors, with lowercase whitespace tokenisation. Each vocabulary retains tokens appearing in at least two training documents (document frequency, unlike W38's total token-frequency threshold).
+\item Four manually computed features: question token length, context token length, number of shared distinct tokens, and the proportion of distinct question tokens also found in the context.
+\end{itemize}
+TF-IDF vocabularies and IDF weights are fitted on training only. The four numerical features are standardised using training means and standard deviations. The blocks are concatenated as a sparse matrix; validation uses the already-fitted transformations. Gold answer text and answer offsets are not input features.
+
+The implemented configuration uses $C=1.0$, the L-BFGS solver, a maximum of 1000 optimisation iterations, balanced class weights, and a 0.5 prediction threshold. These are the settings in the shared implementation; no subsequent parameter change has been reported. Balanced weighting changes each class's contribution to training loss, not the original samples or unweighted validation metrics.
+
+The training feature matrix is $6335\times31183$; validation is $1155\times31183$. Of the 31,183 columns, four are manual numerical features and 31,179 are TF-IDF features. Separate feature-name prefixes preserve question/context provenance for interpretation.
+
+\subsection{Evaluation results}
+The shared evaluation function computes accuracy, macro-F1, and both classes' precision, recall, and F1 overall and by language. Language-specific scores are evaluations of the same pooled model, not separately trained classifiers.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& & & \multicolumn{3}{c}{Answerable} & \multicolumn{3}{c}{Unanswerable} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+Group & Accuracy & Macro-F1 & P & R & F1 & P & R & F1 \\
+\midrule
+Overall & .9126 & .8134 & .9423 & .9566 & .9494 & .7114 & .6463 & .6773 \\
+ar & .9807 & .9574 & .9944 & .9835 & .9889 & .8929 & .9615 & .9259 \\
+ko & .9719 & .8456 & .9795 & .9911 & .9853 & .8000 & .6316 & .7059 \\
+te & .7839 & .6878 & .8399 & .8832 & .8610 & .5641 & .4731 & .5146 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Comparison with W36.} Overall macro-F1 increases from 0.4618 to 0.8134, an absolute gain of 0.3516. Accuracy increases from 85.80\% to 91.26\%. Unlike the majority baseline, Model 1 detects unanswerable cases, reaching unanswerable F1 of 0.6773.
+
+The following counts are reconstructed from the reported supports and rounded precision/recall values. With answerable as the positive class, FP means an unanswerable example predicted answerable; FN means the reverse.
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+Group & TP & TN & FP & FN & Errors \\
+\midrule
+ar & 357 & 50 & 2 & 6 & 8 \\
+ko & 334 & 12 & 7 & 3 & 10 \\
+te & 257 & 44 & 49 & 34 & 83 \\
+\midrule
+Overall & 948 & 106 & 58 & 43 & 101 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Interpretation.} Telugu accounts for 83 of 101 errors (82.2\%) and has the lowest macro-F1. Its increased validation unanswerability and longer contexts are plausible contributors, not established explanations. Korean accuracy is high, but only 12 of 19 unanswerable examples are detected; this illustrates why accuracy and majority-class F1 are insufficient. Telugu answerable F1 (0.8610) is slightly below the majority baseline (0.8622), despite higher macro-F1: the model trades some answerable performance for detecting unanswerable cases.
+
+\subsection{Coefficient inspection and hypotheses}
+I paired each feature name with its learned coefficient and printed the ten most positive and ten most negative coefficients, plus all four manual-feature coefficients. Positive coefficients increase the answerable log-odds, holding other inputs fixed; negative coefficients decrease them. Coefficients describe learned associations, not semantic rules or causal effects.
+
+\begin{center}
+\small
+\begin{tabular}{lr}
+\toprule
+Selected feature (original token) & Coefficient \\
+\midrule
+Question: \AR{متى} (Arabic, ``when'') & 3.354068 \\
+Question: \KO{가장} (Korean, ``most'') & 2.845657 \\
+Question: \AR{ما} (Arabic) & 2.345863 \\
+Question: \KO{언제} (Korean, ``when'') & 2.111135 \\
+Question: \KO{몇} (Korean) & 1.929288 \\
+Question: \AR{هل} (Arabic yes/no question particle) & -13.729928 \\
+Question: \KO{있는가?} (Korean) & -2.822777 \\
+Question: \KO{있을까?} (Korean) & -2.690479 \\
+Question: \KO{수} (Korean) & -2.553954 \\
+Context: \texttt{chemistry,} & -2.269598 \\
+\midrule
+Question length & -0.197592 \\
+Context length & -0.142937 \\
+Shared token count & -0.098730 \\
+Question overlap ratio & 0.060206 \\
+\bottomrule
+\end{tabular}
+\end{center}
+% Original selected tokens: متى | 가장 | ما | 언제 | 몇 | هل | 있는가? | 있을까? | 수
+
+\textbf{Further interpretation.} All ten most positive features in the output are question tokens. The particularly negative Arabic yes/no particle suggests that question form may be a strong cue in this dataset. This could partly explain strong Arabic performance, but needs checks of token--label associations and individual errors. It does not establish robust cross-lingual understanding or demonstrate that context is unimportant.
+
+Direct question--context overlap is limited by the different languages and scripts; shared numerals or Latin-script names may still provide signals. The small displayed overlap coefficients are not sufficient to quantify usefulness, especially because feature scales and correlations differ. A question-only versus full-feature ablation would provide stronger evidence. Such ablations have not yet been run.
+
+\subsection{Error-analysis preparation and remaining work}
+I prepared a full validation prediction table containing example ID, language, question, context, gold label, predicted label, probability of answerable, confidence in the predicted class, and correctness. Printing the first ten rows is only a preview; the complete table remains available for selection by ID and comparison across models. Confidence is the model-assigned probability, not a verified or calibrated correctness rate.
+
+\textbf{Completed analysis:} metric comparison by language and preliminary coefficient-based interpretation. \textbf{Not yet completed:} reading and categorising individual misclassified question--context pairs, establishing error-category frequencies, and comparing failure patterns against Model 2. The prediction table is preparation for these tasks, not a completed manual error analysis.
+
+Model 2, the recurrent question--context classifier, is pending. It can reuse data loading, label conventions, evaluation, and prediction-table construction, while requiring its own token encoding, recurrent architecture, and training loop.
+
+\section{Proposed discussion points for the group}
+
+\begin{enumerate}[leftmargin=*,itemsep=8pt]
+
+\item \textbf{W36: Complete the deterministic rule-based baseline
+and agree on duplicate handling.}
+
+Decide who will implement the remaining rule-based classifier.
+One possible approach is fixed question translation into English,
+followed by keyword-overlap scoring with the context and a
+predefined decision threshold. The rule must not be developed
+or tuned using labelled validation examples, and must not use
+a trained answerability or QA model.
+
+Also agree whether to retain or remove the ten extra duplicate
+question--context rows in the Korean training split.
+If removing them, first check that their annotations agree.
+Use the same resulting training data for models being compared.
+
+\item \textbf{W37: Add explicit boundary tests and implement
+the question-conditioned sequence labeller.}
+
+The ten sampled round-trip checks passed, but explicit tests
+are still needed for an answer starting at character zero,
+a multi-token answer, and punctuation adjacent to an answer.
+Retain the existing unanswerable checks.
+
+Work through a simple model design together: encode the question,
+encode the context with a BiLSTM, and combine the question
+representation with every context-token representation before
+predicting its BIO label.
+
+The existing character-span-to-BIO function supplies training
+labels, while the reverse conversion reconstructs predicted
+answer spans. Agree on how to handle invalid or multiple
+predicted spans and all-O outputs, then compare the trained
+labeller with the required simple span baseline.
+
+\item \textbf{W38: Compare the individual language-model results.}
+
+Compare my Korean bigram model with add-$k$ smoothing
+($k=0.1$, validation perplexity $24.3639$)
+against the group's simple baseline and other model configurations.
+
+Before comparing scores, verify that all experiments use the
+same Korean training and validation questions, tokenisation,
+vocabulary, unknown-token mapping, and BOS/EOS scoring rules.
+Discuss the high unknown-token rate of $38.29\%$ and how it
+affects the interpretation of low-perplexity questions.
+
+\item \textbf{W39: Review Model 1 and complete Model 2.}
+
+Review the logistic-regression baseline's features and settings:
+separate question/context TF-IDF vectors, four manual numerical
+features, $C=1.0$, balanced class weights, and a prediction
+threshold of $0.5$.
+
+Agree on responsibility for the recurrent classifier and reuse
+the same training/validation examples, label conventions,
+and evaluation functions. Balanced weighting is an initial
+choice, not an experimentally established optimum; comparing
+it with unweighted training is optional further work.
+
+\item \textbf{W39: Conduct manual error analysis and compare
+the two classifiers.}
+
+Use the prepared prediction tables to inspect at least ten
+validation errors, covering false positives, false negatives,
+and the three languages where available.
+Here, answerable is the positive class.
+
+Prioritise understanding why Telugu accounts for 83 of the
+101 Model 1 errors. Also investigate whether strong
+question-form cues, such as the Arabic yes/no particle
+\AR{هل}, help explain the model's behaviour.
+
+Define error categories after reading the examples, then compare
+whether Model 1 and Model 2 fail on similar cases.
+The observed distribution differences and feature coefficients
+provide hypotheses, not confirmed explanations.
+A question-only versus full-feature ablation is an optional
+way to investigate reliance on question-form cues.
+
+\end{enumerate}
+
+\paragraph{AI assistance.} GPT was used for explanations, code drafting/debugging, interpretation of outputs, and preparation of this meeting note. Reported experimental values come from my supplied outputs. New interpretations in this note are hypotheses unless supported by the stated checks. Project-related prompts and outputs should be retained for the required disclosure/logs.
+\end{document}

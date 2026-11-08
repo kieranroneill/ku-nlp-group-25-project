@@ -1,0 +1,1028 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.1cm]{geometry}
+% Compile with XeLaTeX in Overleaf.
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\newfontfamily\arabicfont[Script=Arabic]{Noto Naskh Arabic}
+\newfontfamily\koreanfont{Noto Serif CJK KR}
+\newfontfamily\telugufont[Script=Telugu]{Noto Serif Telugu}
+\usepackage{booktabs,tabularx,array,amsmath,enumitem}
+\usepackage[hidelinks]{hyperref}
+% XeTeX bidirectional support for short Arabic tokens in LTR tables.
+\TeXXeTstate=1
+\newcommand{\AR}[1]{{\arabicfont\beginR #1\endR}}
+\newcommand{\KO}[1]{{\koreanfont #1}}
+\newcommand{\TE}[1]{{\telugufont #1}}
+\setlist[itemize]{nosep,leftmargin=*}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\newcommand{\unk}{\texttt{<UNK>}}
+\newcommand{\bos}{\texttt{<BOS>}}
+\newcommand{\eos}{\texttt{<EOS>}}
+\title{Group 25: NLP Project Progress\\\large Weeks 36--39 --- Interim Submission for Feedback}
+\author{Group 25}
+\date{12 October 2026}
+\begin{document}
+\maketitle
+
+\section{Scope and current status}
+This interim report presents our progress as Group 25 on the project tasks for Weeks 36--39 and is submitted for optional feedback. It is organised by weekly task and distinguishes completed experiments, observed results, and work still in progress. Comparisons and analyses that remain unfinished are identified in the relevant sections.
+
+The dataset is \texttt{coastalcph/tydi\_xor\_rc}, restricted to Arabic (ar), Korean (ko), and Telugu (te). Questions are in these languages; contexts are in English. The current experiments use the existing training and validation splits. No held-out test result is reported here.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Task & Status \\
+\midrule
+W36 & Data statistics, frequent tokens, span integrity checks, and majority-class baseline completed. Deterministic rule-based baseline pending. \\
+W37 & Character-span/BIO conversion and ten round-trip checks completed. Explicit boundary tests and question-conditioned sequence labeller pending. \\
+W38 & Korean bigram language model and high-/low-perplexity analysis completed. Comparison with our models and shared baseline pending. \\
+W39 & Logistic-regression and BiLSTM classifiers, shared evaluation, model comparison, coefficient inspection, and prediction tables completed. Ten error examples selected and translated. Manual analysis of error causes and failure taxonomy pending. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection*{Dataset overview}
+
+The original dataset contains two main experimental splits:
+15,343 training examples and 3,011 validation examples,
+giving 18,354 examples in total across these two splits.
+The repository also contains a separate test split with only
+four English examples; this is not used for our multilingual
+evaluation.
+
+After retaining the three required question languages
+--- Arabic (ar), Korean (ko), and Telugu (te) ---
+the working dataset used in this report has the following size:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Split & Number of examples \\
+\midrule
+Training & 6,335 \\
+Validation & 1,155 \\
+\midrule
+Total & 7,490 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each row represents one question--context example and contains
+seven columns:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Column & Meaning \\
+\midrule
+\texttt{lang}
+& Language of the question. \\
+
+\texttt{question}
+& The question to be answered. \\
+
+\texttt{context}
+& The English passage used to answer the question. \\
+
+\texttt{answerable}
+& Boolean label indicating whether the example has an
+extractable answer in the supplied context. \\
+
+\texttt{answer\_start}
+& Zero-based character position at which the answer starts;
+$-1$ for unanswerable examples. \\
+
+\texttt{answer}
+& The English answer span for answerable examples.
+For unanswerable examples, the raw field may contain
+a nonempty value such as ``yes'' or ``no''. \\
+
+\texttt{answer\_inlang}
+& An optional answer in the question's language,
+available for only some examples. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{W36: Data inspection and initial baseline}
+\subsection{Counts, class balance, and text lengths}
+\textbf{Implementation.} We loaded the locally saved dataset, converted the two splits to pandas DataFrames, and grouped each split by language. Within each of the six groups, we counted examples and answerability labels. Question and context lengths were measured using whitespace tokenisation, \texttt{text.split()}. We computed the median, first and third quartiles, and $\mathrm{IQR}=Q_3-Q_1$ for each length distribution.
+
+\begin{center}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Split & Language & Examples & Answerable & Unanswerable & Unans. (\%) \\
+\midrule
+Train & ar & 2558 & 2303 & 255 & 9.97 \\
+Train & ko & 2422 & 2359 & 63 & 2.60 \\
+Train & te & 1355 & 1310 & 45 & 3.32 \\
+Validation & ar & 415 & 363 & 52 & 12.53 \\
+Validation & ko & 356 & 337 & 19 & 5.34 \\
+Validation & te & 384 & 291 & 93 & 24.22 \\
+\midrule
+Train, all & & 6335 & 5972 & 363 & 5.73 \\
+Validation, all & & 1155 & 991 & 164 & 14.20 \\
+Combined & & 7490 & 6963 & 527 & 7.04 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{llrrrrrrrr}
+\toprule
+& & \multicolumn{4}{c}{Question length} & \multicolumn{4}{c}{Context length} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+Split & Lang. & $Q_1$ & Median & $Q_3$ & IQR & $Q_1$ & Median & $Q_3$ & IQR \\
+\midrule
+Train & ar & 5 & 6 & 8 & 3 & 59 & 89 & 127 & 68 \\
+Train & ko & 4 & 5 & 6 & 2 & 57 & 84 & 120 & 63 \\
+Train & te & 5 & 6 & 7 & 2 & 53 & 80 & 112 & 59 \\
+Validation & ar & 5 & 6 & 8 & 3 & 59.5 & 87 & 122.5 & 63 \\
+Validation & ko & 4 & 5 & 6 & 2 & 52 & 84 & 123 & 71 \\
+Validation & te & 5 & 6 & 7 & 2 & 75 & 100 & 138 & 63 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning.} Answerability is strongly imbalanced, so accuracy alone is insufficient. The unanswerable proportion increases from 5.73\% in training to 14.20\% in validation. Telugu has the largest change, from 3.32\% to 24.22\%, and its median context length increases from 80 to 100 tokens. These observed differences may help explain later performance differences, but do not by themselves establish a cause. Question-length medians and IQRs remain unchanged within each language. Whitespace token counts are operational measurements, not linguistically equivalent units across languages.
+
+\subsection{Missing values and exact duplicates}
+\textbf{Implementation.} We checked missing values and whitespace-only/empty strings separately in every column. Exact duplicates were defined using the question--context pair, within each split--language group. We counted both extra duplicate rows after retaining the first occurrence and all rows belonging to duplicate groups.
+
+\textbf{Results.} All columns except \texttt{answer\_inlang} have zero missing values; all columns have zero blank strings. The optional field has the following availability:
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+Split & Language & Missing \texttt{answer\_inlang} & Available \\
+\midrule
+Train & ar & 2558 & 0 \\
+Train & ko & 2422 & 0 \\
+Train & te & 1305 & 50 \\
+Validation & ar & 415 & 0 \\
+Validation & ko & 356 & 0 \\
+Validation & te & 284 & 100 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Only Korean training data contains duplicate pairs: 10 extra rows and 20 rows in duplicate groups, consistent with ten pairs each appearing twice. Every other group has zero exact duplicate pairs.
+
+\textbf{Meaning and follow-up.} Missing \texttt{answer\_inlang} is expected for an optional annotation and does not indicate that question/context inputs are incomplete. Duplicate pairs can give some examples extra training weight; we have identified them but do not claim to have removed them or checked their label agreement. The within-group duplicate check does not establish that training and validation are disjoint: a cross-split overlap check remains a separate follow-up question.
+
+\subsection{Most frequent training question tokens}
+\textbf{Implementation.} For each language, we tokenised training questions with \texttt{split()}, pooled token occurrences, counted each distinct token, and selected the five highest counts. Validation questions were not used. Punctuation was not removed or separated automatically.
+
+\textbf{Results.} The following table preserves the original script tokens. English glosses are brief interpretations and can be context-dependent. Arabic tokens are typeset right-to-left within their cells; the table and counts remain left-to-right.
+% Original tokens, in rank order:
+% ar: ؟ | في | من | متى | ما
+% ko: 가장 | 무엇인가? | 언제 | 몇 | 어디인가?
+% te: ? | ఎవరు? | ఎన్ని | ఎప్పుడు | ఏ
+\begin{center}
+\small
+\begin{tabular}{llrl}
+\toprule
+Language & Original token & Count & English gloss \\
+\midrule
+ar & \AR{؟} & 1054 & punctuation \\
+ar & \AR{في} & 592 & in \\
+ar & \AR{من} & 584 & from / who (context-dependent) \\
+ar & \AR{متى} & 535 & when \\
+ar & \AR{ما} & 441 & what (context-dependent) \\
+\midrule
+ko & \KO{가장} & 527 & most \\
+ko & \KO{무엇인가?} & 495 & what is it? \\
+ko & \KO{언제} & 336 & when \\
+ko & \KO{몇} & 234 & how many / which number \\
+ko & \KO{어디인가?} & 228 & where is it? \\
+\midrule
+te & ? & 260 & punctuation \\
+te & \TE{ఎవరు?} & 186 & who? \\
+te & \TE{ఎన్ని} & 161 & how many \\
+te & \TE{ఎప్పుడు} & 151 & when \\
+te & \TE{ఏ} & 142 & which \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning and further inspection.} Frequent tokens include question words and punctuation. Standalone question marks being highly frequent is partly a tokenisation effect: whitespace splitting preserves an isolated mark as a token but keeps attached punctuation with a word. Arabic right-to-left rendering made token/count positions look reversed in console output; this display issue should not be confused with a counting error.
+
+\subsection{Answer-span integrity}
+\textbf{Implementation.} For each answerable example in both splits, we verified
+\[
+\texttt{context[start : start + len(answer)] == answer}.
+\]
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Split & Checked & Failed \\
+\midrule
+Train & 5972 & 0 \\
+Validation & 991 & 0 \\
+Total & 6963 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{Meaning.} Every checked answer text matches its annotated character slice. This supports using character offsets for BIO conversion. It does not prove that every answer aligns with the boundaries of a chosen tokenizer or that every annotation is semantically correct.
+
+\subsection{Baseline 1: majority-class answerability}
+\textbf{Implementation.} The majority label was selected from training labels only. Since 94.27\% are answerable, the baseline predicts answerable for every validation example. Evaluation reports macro-F1 and precision/recall/F1 for both classes, overall and by language. Undefined precision for the never-predicted class is reported as zero.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+& & \multicolumn{3}{c}{Answerable} & \multicolumn{3}{c}{Unanswerable} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Group & Macro-F1 & P & R & F1 & P & R & F1 \\
+\midrule
+Overall & .4618 & .8580 & 1.0000 & .9236 & .0000 & .0000 & .0000 \\
+ar & .4666 & .8747 & 1.0000 & .9332 & .0000 & .0000 & .0000 \\
+ko & .4863 & .9466 & 1.0000 & .9726 & .0000 & .0000 & .0000 \\
+te & .4311 & .7578 & 1.0000 & .8622 & .0000 & .0000 & .0000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning.} Overall accuracy is 85.80\%, derived directly from the validation class counts, despite detecting no unanswerable examples. Macro-F1 of 0.4618 exposes this weakness and provides a reference for W39.
+
+\textbf{Pending.} Baseline 2, the deterministic question--context rule-based classifier, is not implemented. The learned W39 classifier does not replace this separate requirement.
+
+\section{W37: Character spans and BIO labels}
+\textbf{Implementation.} We adapted the Lab 2 tokeniser to return context tokens together with their original character offsets. The regular expression matches word sequences or individual non-whitespace punctuation characters. For an answerable example, we locate the tokens covered by the gold character span, check text consistency and token-boundary alignment, label the first answer token B-ANS and subsequent answer tokens I-ANS, and label all other tokens O.
+
+For unanswerable examples, all labels are O. The reverse function validates a single contiguous B-ANS/I-ANS span and uses the stored offsets to slice the original context. An all-O sequence returns the canonical empty result $(-1,\texttt{""})$. Thus reconstruction preserves the original text rather than joining token strings and potentially changing spacing.
+
+\textbf{Checks and result.} We sampled five answerable and five unanswerable training examples with a fixed random seed. All ten round-trip checks passed. Answerable checks compare both recovered start and text with the originals. Unanswerable checks verify all-O labels and the canonical empty result; they do not require reproducing a possible nonempty raw answer field.
+
+\textbf{Debugging completed.} The lab's reverse conversion originally returned \texttt{None} for an empty span. We changed this to $-1$ to match the project's representation and assertions.
+
+\textbf{Meaning and limitations.} Conversion is working on the ten selected examples. Explicit tests for start position zero, multi-token answers, and punctuation adjacency have not yet been conducted. Passing a small sample does not establish general boundary coverage. Exact character-slice agreement from W36 also does not guarantee token-boundary alignment.
+
+\textbf{Pending.} The question-conditioned sequence labeller is not completed. The current BIO labels are generated from gold answers, not predicted by a trained model. No learned token-F1 or exact-span score is available. The remaining implementation challenge is to incorporate question information into the sequence model so that it conditions each context-token prediction.
+
+\section{W38: Korean bigram language model}
+\subsection{Implementation and evaluation protocol}
+We selected Korean as the shared language. The model reported here is a bigram LM with add-$k$ smoothing, $k=0.1$, trained on all Korean training questions, regardless of answerability.
+\begin{itemize}
+\item Tokenisation: whitespace splitting, preserving case and attached punctuation.
+\item Vocabulary: training tokens with total frequency at least two, plus \unk{} and \eos{}. Rare training tokens and out-of-vocabulary validation tokens map to \unk{}.
+\item Boundaries: each question is processed separately as \bos{}, question tokens, \eos{}. \bos{} provides history but is excluded from prediction vocabulary and scoring. \eos{} is predicted and scored.
+\item Training: count each adjacent token pair and each preceding-token history, including boundary transitions.
+\end{itemize}
+For vocabulary size $V$, the conditional probability is
+\[
+P(w\mid h)=\frac{C(h,w)+k}{C(h)+kV}.
+\]
+Validation corpus perplexity is
+\[
+\mathrm{PPL}=\exp\left(-\frac{1}{N}\sum_{i=1}^{N}\log P(w_i\mid h_i)\right),
+\]
+where $N$ includes question tokens and one \eos{} per question. Corpus perplexity is computed from pooled log probabilities, not the arithmetic mean of question perplexities.
+
+\subsection{Observed results}
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Quantity & Value \\
+\midrule
+Training questions & 2422 \\
+Validation questions & 356 \\
+Prediction vocabulary size & 1126 \\
+Observed training bigram types & 3678 \\
+Validation text tokens, excluding boundaries & 1729 \\
+Validation \unk{} tokens & 662 \\
+Validation \unk{} rate & 38.29\% \\
+Scored tokens, including \eos{} & 2085 \\
+Mean negative log probability & 3.193102 \\
+Per-token validation perplexity & 24.3639 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Meaning.} The model assigns probabilities successfully, but 24.3639 cannot yet be called strong or weak without our baseline and model results under the same protocol. The 38.29\% unknown rate means much lexical information is collapsed. A lower perplexity can partly reflect easier prediction after this collapse. Changing $k$ alone would not change the unknown rate. The vocabulary, tokenisation, unknown handling, and boundary scoring must remain shared for comparisons.
+
+\subsection{Further analysis: high- and low-perplexity questions}
+We scored each validation question separately, recording original text, mapped tokens, token count, unknown count/rate, and perplexity. We sorted these scores and inspected selected examples. Indices below refer to positions in the Korean-filtered validation list, not original full-dataset row IDs.
+
+\begin{center}
+\small
+\begin{tabular}{lrrl}
+\toprule
+Question index & Tokens & Unknown rate & Perplexity \\
+\midrule
+24, 64, 195 (each) & 3 & 66.67\% & 3.8087 \\
+19 & 2 & 50.00\% & 3.9460 \\
+203 & 6 & 100.00\% & Among the five lowest \\
+\midrule
+347 & 4 & 25.00\% & 390.5409 \\
+73 & 3 & 0.00\% & 380.8328 \\
+278 & 4 & 25.00\% & 341.9618 \\
+163 & 5 & 20.00\% & 309.0801 \\
+191 & 6 & 16.67\% & 283.2558 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The exact score for index 203 was clipped in the available output, so it is not transcribed.
+
+\textbf{Direct bigram evidence.} We printed each transition's training count, history count, and smoothed probability for indices 24, 203, and 73.
+\begin{itemize}
+\item Indices 24, 64, and 195 become the same sequence: two \unk{} tokens followed by the question-ending token \KO{무엇인가?}. Identical transformed sequences necessarily have identical perplexity. For index 24, $P(\unk{}\mid\bos{})=0.426537$, $P(\unk{}\mid\unk{})=0.292000$, and the final transition to \eos{} has probability 0.814845 (training counts 495/495 before smoothing).
+\item Index 203 becomes six \unk{} tokens. Its five internal transitions all use the same \unk{}--\unk{} probability, supported by a bigram count of 992 and a history count of 3285. This supports the interpretation that its low score reflects a common abstract pattern rather than knowledge of the original words.
+\item Index 73 contains no unknown tokens but has perplexity 380.8328. Its four transition counts are 3, 0, 1, and 2, with probabilities 0.001223, 0.000865, 0.002452, and 0.018325. Known individual words can still form rare or unseen bigrams.
+\end{itemize}
+
+\textbf{Smoothing effect.} Since $kV=112.6$, smoothing strongly affects rare histories. At the last transition of index 73, the successor \eos{} accounts for both observed occurrences, but the smoothed probability is only $(2+0.1)/(2+112.6)=0.018325$. This explains one source of the high score; it does not establish that decreasing $k$ would improve overall validation performance.
+
+\textbf{Pending.} Compare against our simple baseline and other configurations using identical questions and preprocessing. Current results and settings are retained pending that comparison.
+
+\section{W39: Learned answerability classification}
+
+\subsection{Task and shared evaluation protocol}
+
+The task is binary answerability classification: given a question and its
+context, predict whether the context contains the answer. We implemented
+two pooled classifiers using all three languages: an interpretable
+logistic-regression baseline and a recurrent neural classifier based on
+BiLSTMs.
+
+Both models use the same 6,335 training examples and 1,155 validation
+examples from Arabic, Korean, and Telugu. Questions are in the respective
+languages, while contexts are in English. The input fields are question
+and context; gold answers, answer offsets, and translated answers are
+not used as features. Language is used for reporting grouped results.
+
+Answerable is the positive class:
+\[
+y=1:\ \text{answerable},
+\qquad
+y=0:\ \text{unanswerable}.
+\]
+Both models use a fixed answerable-probability threshold of 0.5.
+Evaluation reports accuracy, macro-F1, and precision, recall, and F1
+for each class, both overall and by language. Language-specific results
+evaluate the same pooled model rather than separately trained models.
+
+All fitted preprocessing and class weights are estimated from training
+data only. Validation metrics are unweighted, even though both models
+use class weighting during training. The BiLSTM checkpoint is selected
+using validation macro-F1, so these results are development-set
+comparisons rather than performance estimates on an untouched test set.
+
+
+\subsection{Model 1: interpretable logistic regression}
+
+\subsubsection{Representation and implementation}
+
+The input combines three feature blocks:
+\begin{itemize}
+    \item Separate question and context TF-IDF vectors, using lowercase
+    whitespace tokenisation. Each vocabulary retains tokens occurring
+    in at least two training documents. This is a document-frequency
+    threshold, unlike W38's total token-frequency threshold.
+    \item Question and context token lengths.
+    \item The number of shared distinct tokens and the proportion of
+    distinct question tokens also appearing in the context.
+\end{itemize}
+
+TF-IDF vocabularies and IDF weights are fitted on training data only.
+The four numerical features are standardised using training means and
+standard deviations. The feature blocks are concatenated as a sparse
+matrix, and validation data uses the already-fitted transformations.
+
+The training feature matrix has shape $6335 \times 31183$, and the
+validation matrix has shape $1155 \times 31183$. Of the 31,183 columns,
+31,179 are TF-IDF features and four are numerical features. Feature-name
+prefixes distinguish question features from context features.
+
+The classifier uses L2 regularisation with $C=1.0$, the L-BFGS solver,
+a maximum of 1,000 optimisation iterations, and balanced class weights.
+Balanced weighting changes each class's contribution to the training
+loss; it does not modify the original examples or their labels.
+
+This representation provides an interpretable baseline suitable for a
+relatively small training set. Question and context TF-IDF features
+contribute additively to the classification score, while the overlap
+features explicitly describe a limited interaction between the two
+texts. The model does not directly learn detailed token-to-token
+semantic alignment.
+
+\subsubsection{Validation results}
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& & & \multicolumn{3}{c}{Answerable}
+      & \multicolumn{3}{c}{Unanswerable} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+Group & Accuracy & Macro-F1 & P & R & F1 & P & R & F1 \\
+\midrule
+Overall & .9126 & .8134 & .9423 & .9566 & .9494
+        & .7114 & .6463 & .6773 \\
+ar      & .9807 & .9574 & .9944 & .9835 & .9889
+        & .8929 & .9615 & .9259 \\
+ko      & .9719 & .8456 & .9795 & .9911 & .9853
+        & .8000 & .6316 & .7059 \\
+te      & .7839 & .6878 & .8399 & .8832 & .8610
+        & .5641 & .4731 & .5146 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\subsection{Model 2: recurrent neural classifier}
+
+\subsubsection{Representation and question--context interaction}
+
+Model 2 uses the same lowercase whitespace tokenisation as Model 1.
+A shared vocabulary is constructed from training questions and contexts,
+retaining tokens with a total training frequency of at least two.
+Tokens outside this vocabulary are mapped to \texttt{<UNK>}, while
+\texttt{<PAD>} is used for batching. The vocabulary contains 33,771
+entries, including these two special tokens.
+
+Unlike Model 1, Model 2 represents each question and context as an
+ordered sequence of token IDs. These IDs are mapped to shared,
+64-dimensional embeddings, which are randomly initialised and learned
+during training. No pretrained multilingual embeddings are used.
+
+Questions and contexts are encoded by separate, single-layer
+bidirectional LSTMs. Each direction has a hidden size of 64. The final
+forward and backward states are concatenated, producing a
+128-dimensional question representation and a 128-dimensional context
+representation.
+
+The two representations are concatenated into a 256-dimensional vector.
+A classification head then applies:
+\[
+256
+\;\longrightarrow\;
+64
+\;\longrightarrow\;
+\text{ReLU}
+\;\longrightarrow\;
+\text{Dropout}
+\;\longrightarrow\;
+2\text{ class scores}.
+\]
+Softmax converts the two scores into class probabilities.
+
+The recurrent encoders allow token order and surrounding tokens to
+influence the representations. The nonlinear classification head
+combines information from both texts. However, the question and context
+are encoded independently before this combination: the model has no
+explicit cross-attention or token-level question--context alignment.
+
+Model 2 does not include Model 1's four manually computed numerical
+features. Its representations are learned from the token sequences.
+Consequently, the comparison concerns two complete modelling approaches,
+not an isolated change of classifier with identical input features.
+
+\subsubsection{Training configuration}
+
+Sequences are padded within each batch, and their original lengths are
+used to exclude padding from recurrent processing. The implementation
+does not truncate the sequences.
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Setting & Value \\
+\midrule
+Random seed & 42 \\
+Minimum training token frequency & 2 \\
+Embedding dimension & 64 \\
+BiLSTM hidden size per direction & 64 \\
+Classification hidden dimension & 64 \\
+Dropout probability & 0.3 \\
+Batch size & 32 \\
+Training epochs & 10 \\
+Optimiser & Adam \\
+Learning rate & 0.001 \\
+Gradient clipping maximum norm & 1.0 \\
+Device & CPU \\
+Checkpoint selection & Highest validation macro-F1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Training uses class-weighted cross-entropy. Class weights are calculated
+from the training class counts as
+\[
+w_c = \frac{N}{2N_c},
+\]
+giving weights of approximately 8.7259 for unanswerable and 0.5304 for
+answerable. This increases the contribution of the less frequent
+unanswerable examples to the training objective.
+
+During each training batch, the model computes class scores and loss,
+backpropagates gradients, and updates its parameters. Validation is
+performed without gradient updates after each epoch.
+
+The parameters achieving the highest validation macro-F1 are copied
+and retained. After all ten epochs, this checkpoint is restored for
+evaluation and prediction export. Thus, the reported model is the
+epoch-3 checkpoint, not the final epoch-10 parameters.
+
+\subsubsection{Training behaviour}
+
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule
+Epoch & Training loss & Validation loss & Validation macro-F1 \\
+\midrule
+1  & .4124 & 1.5337 & .7466 \\
+2  & .2326 & 1.1915 & .7711 \\
+3  & .1211 & 2.3945 & \textbf{.8076} \\
+4  & .0571 & 2.5417 & .8051 \\
+5  & .0392 & 3.2207 & .7871 \\
+6  & .0228 & 2.9655 & .7827 \\
+7  & .0151 & 4.2038 & .7851 \\
+8  & .0052 & 4.6804 & .7800 \\
+9  & .0040 & 7.0485 & .7526 \\
+10 & .0031 & 5.0223 & .7829 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Training loss decreases throughout training, but validation macro-F1
+peaks at epoch 3 and does not subsequently improve. Validation loss
+also rises substantially after its minimum at epoch 2. This pattern
+is consistent with overfitting: further improvement on the training
+objective does not translate into better validation classification.
+
+The minimum validation loss and maximum validation macro-F1 occur at
+different epochs because they measure different properties.
+Cross-entropy depends on the probabilities assigned to the gold
+classes, whereas macro-F1 depends on the resulting discrete predictions.
+The checkpoint is selected using macro-F1, in accordance with the
+evaluation objective.
+
+The absolute training--validation loss gap should be interpreted with
+care: training loss is accumulated while parameters are changing and
+dropout is active, whereas validation loss is calculated with fixed
+parameters and dropout disabled. The two splits also have different
+class proportions.
+
+\subsubsection{Validation results}
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& & & \multicolumn{3}{c}{Answerable}
+      & \multicolumn{3}{c}{Unanswerable} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+Group & Accuracy & Macro-F1 & P & R & F1 & P & R & F1 \\
+\midrule
+Overall & .9143 & .8076 & .9355 & .9667 & .9509
+        & .7481 & .5976 & .6644 \\
+ar      & .9807 & .9574 & .9944 & .9835 & .9889
+        & .8929 & .9615 & .9259 \\
+ko      & .9719 & .8456 & .9795 & .9911 & .9853
+        & .8000 & .6316 & .7059 \\
+te      & .7891 & .6694 & .8241 & .9175 & .8683
+        & .6000 & .3871 & .4706 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\subsection{Comparison and quantitative interpretation}
+
+\subsubsection{Overall comparison}
+
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Model & Accuracy & Macro-F1 & Answerable F1 & Unanswerable F1 \\
+\midrule
+W36 majority baseline & .8580 & .4618 & .9236 & .0000 \\
+Logistic regression   & .9126 & .8134 & .9494 & .6773 \\
+BiLSTM, epoch 3        & .9143 & .8076 & .9509 & .6644 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both learned classifiers substantially improve over the W36
+majority-class baseline. Logistic regression increases macro-F1 by
+0.3516, and the BiLSTM increases it by 0.3458. Unlike the majority
+baseline, both models identify a substantial proportion of
+unanswerable examples.
+
+The BiLSTM has slightly higher accuracy than logistic regression
+(91.43\% versus 91.26\%), but slightly lower macro-F1
+(0.8076 versus 0.8134). Logistic regression therefore performs slightly
+better under the primary macro-F1 comparison in this run.
+
+The difference reflects a trade-off between classes. The BiLSTM has
+higher answerable recall but lower unanswerable recall. Its improved
+accuracy does not imply better performance on both classes, particularly
+given the majority of answerable validation examples.
+
+These results come from one configuration and random seed per model.
+The small difference does not establish that one model family is
+generally superior.
+
+\subsubsection{Confusion counts and language differences}
+
+The following counts are computed from the saved validation
+predictions. With answerable as the positive class, a false positive
+(FP) is an unanswerable example predicted answerable, and a false
+negative (FN) is an answerable example predicted unanswerable.
+
+\begin{center}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Model & Group & TP & TN & FP & FN & Errors \\
+\midrule
+Logistic regression & ar      & 357 & 50  & 2  & 6  & 8 \\
+                    & ko      & 334 & 12  & 7  & 3  & 10 \\
+                    & te      & 257 & 44  & 49 & 34 & 83 \\
+                    & Overall & 948 & 106 & 58 & 43 & 101 \\
+\midrule
+BiLSTM              & ar      & 357 & 50  & 2  & 6  & 8 \\
+                    & ko      & 334 & 12  & 7  & 3  & 10 \\
+                    & te      & 267 & 36  & 57 & 24 & 81 \\
+                    & Overall & 958 & 98  & 66 & 33 & 99 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Relative to logistic regression, the BiLSTM correctly classifies ten
+more answerable examples but eight fewer unanswerable examples,
+resulting in two fewer errors overall.
+
+Telugu is the most difficult language for both models. It accounts for
+83 of 101 logistic-regression errors (82.2\%) and 81 of 99 BiLSTM errors
+(81.8\%). Its error rates are also much higher: 21.61\% and 21.09\%,
+respectively, compared with 1.93\% for Arabic and 2.81\% for Korean
+under both models.
+
+The W36 statistics show that Telugu's unanswerable proportion increases
+from 3.32\% in training to 24.22\% in validation. Telugu validation
+contexts are also longer on average as measured by the median.
+These are relevant distributional differences, but the present results
+do not establish them as the causes of individual errors.
+
+The models produce identical Arabic predictions, including the same
+eight errors. Their Korean aggregate scores are also identical, but
+their predictions differ on four examples. Thus, identical metrics
+do not necessarily imply identical decisions.
+
+Across all languages, the models disagree on 42 examples. Both are
+wrong on 79 examples; logistic regression alone is wrong on 22, and
+the BiLSTM alone is wrong on 20. These complementary outcomes motivate
+including both shared and model-specific errors in the manual sample.
+
+For Korean, both models detect only 12 of 19 unanswerable examples,
+despite their high overall accuracy. This illustrates why accuracy
+alone is insufficient. For Telugu, the BiLSTM's unanswerable recall
+falls from logistic regression's 0.4731 to 0.3871, which contributes
+to its lower Telugu macro-F1.
+
+
+\subsection{Model 1 coefficient inspection}
+
+We paired each feature name with its learned coefficient and inspected
+the ten most positive and ten most negative coefficients, together
+with all four numerical-feature coefficients.
+
+Positive coefficients increase answerable log-odds, holding the other
+features fixed; negative coefficients decrease them. These are learned
+associations, not semantic rules or causal effects.
+
+\begin{center}
+\small
+\begin{tabular}{lr}
+\toprule
+Selected feature & Coefficient \\
+\midrule
+Question: \AR{متى} (Arabic, ``when'') & 3.354068 \\
+Question: \KO{가장} (Korean, ``most'') & 2.845657 \\
+Question: \AR{ما} (Arabic) & 2.345863 \\
+Question: \KO{언제} (Korean, ``when'') & 2.111135 \\
+Question: \KO{몇} (Korean) & 1.929288 \\
+Question: \AR{هل} (Arabic yes/no question particle) & -13.729928 \\
+Question: \KO{있는가?} (Korean) & -2.822777 \\
+Question: \KO{있을까?} (Korean) & -2.690479 \\
+Question: \KO{수} (Korean) & -2.553954 \\
+Context: \texttt{chemistry,} & -2.269598 \\
+\midrule
+Question length & -0.197592 \\
+Context length & -0.142937 \\
+Shared token count & -0.098730 \\
+Question overlap ratio & 0.060206 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All ten most positive features in the output are question tokens.
+The particularly negative coefficient for the Arabic yes/no particle
+suggests that question form is a strong learned cue. Whether this
+association explains particular correct or incorrect predictions
+requires further inspection. It does not demonstrate robust
+cross-lingual understanding or show that context is unimportant.
+
+Direct question--context token overlap is limited by the different
+languages and scripts, although shared numerals and Latin-script names
+may still provide signals. The displayed overlap coefficients alone
+cannot establish feature usefulness because feature scales and
+correlations differ. A question-only versus full-feature ablation
+would provide stronger evidence; this has not yet been performed.
+
+
+\subsection{Manual error-analysis preparation}
+
+\subsubsection{Prediction tables and sample selection}
+
+Full validation prediction tables were saved for both models,
+including example ID, language, question, context, gold label,
+predicted label, answerable probability, prediction confidence, and
+correctness. Prediction confidence is a model-assigned probability,
+not a verified or calibrated probability of being correct.
+
+We compared the tables by example ID and manually selected ten distinct
+validation examples. Each selected example is misclassified by at
+least one model; an example does not have to be wrong under both
+models to qualify.
+
+Selection aimed to cover:
+\begin{itemize}
+    \item Both false positives and false negatives.
+    \item All three languages: three Arabic, three Korean, and four
+    Telugu examples.
+    \item Shared errors and cases where one model succeeds while
+    the other fails.
+\end{itemize}
+
+The sample contains six examples misclassified by both models, two
+misclassified only by logistic regression, and two misclassified only
+by the BiLSTM. This is a deliberately varied sample for qualitative
+inspection, not a random sample for estimating population-level
+error-category frequencies.
+
+\begin{center}
+\small
+\begin{tabular}{rlrrrll}
+\toprule
+ID & Language & Gold & M1 & M2 & M1 outcome & M2 outcome \\
+\midrule
+752  & ar & 1 & 0 & 0 & FN      & FN \\
+831  & ar & 0 & 1 & 1 & FP      & FP \\
+1003 & ar & 1 & 0 & 0 & FN      & FN \\
+438  & ko & 1 & 1 & 0 & Correct & FN \\
+630  & ko & 1 & 0 & 1 & FN      & Correct \\
+337  & ko & 0 & 1 & 1 & FP      & FP \\
+48   & te & 1 & 0 & 1 & FN      & Correct \\
+1072 & te & 0 & 0 & 1 & Correct & FP \\
+221  & te & 1 & 0 & 0 & FN      & FN \\
+1154 & te & 0 & 1 & 1 & FP      & FP \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Here, M1 denotes logistic regression and M2 denotes the BiLSTM.
+The ten distinct examples contain sixteen model-specific error
+instances because six examples are errors under both models.
+
+\subsubsection{Translation and planned qualitative inspection}
+
+To support manual interpretation, we translated each selected question
+into English using both DeepL and Google Translate and compared the
+translations. The original question and both translations are retained
+alongside the original English context.
+
+These translations are used only for human analysis. They were not
+provided to the classifiers and do not change the reported predictions.
+Agreement between translation tools is useful for interpretation but
+does not guarantee that every semantic detail is preserved; potentially
+important differences will be checked during inspection.
+
+The next step is to examine each selected example by combining:
+\begin{itemize}
+    \item The original question and its English translations.
+    \item The information actually stated in the English context.
+    \item The gold answerability label.
+    \item Each model's prediction and whether it constitutes an FP,
+    an FN, or a correct decision.
+\end{itemize}
+
+The inspection will assess what information the question requests,
+whether the supplied context supports an answer, and what observable
+properties may help explain the models' decisions. Comparing shared
+errors with model-specific errors will help distinguish common
+difficulties from differences between the two approaches.
+
+At this stage, sample selection, prediction comparison, and translation
+are complete. Explanations of individual errors, a recurring failure
+taxonomy, category counts, and representative analysed cases remain
+to be completed. Any proposed explanations will be presented as
+evidence-based hypotheses rather than confirmed internal causes of
+the models' predictions.
+
+% Required package: \usepackage{booktabs}
+% Sources: seed42_epochs6.rar, seed43_epochs6.rar,
+% seed44_epochs6.rar; previously reported W39 results.
+\section{W40--41: Integrated Multilingual QA}
+
+\subsection{Model and evaluation protocol}
+We fine-tuned XLM-R-base jointly on Arabic, Korean and Telugu
+questions paired with English contexts. The model predicts answer
+start/end positions or returns an empty answer. We used all 6,335
+training and 1,155 validation examples. Overlapping windows of
+384 tokens with stride 128 produced 6,562 training and 1,194
+validation features; evaluation aggregates predictions back to
+original examples. Questions were limited to 128 tokens, and
+decoded answers to 30 tokens. All answerable training examples
+had a fully covering window, although 49 exceeded the decoding
+length limit.
+
+We trained for six epochs with learning rate $2\times10^{-5}$,
+weight decay 0.01, warmup ratio 0.1, and effective batch size 8.
+Three runs used seeds 42, 43 and 44 with otherwise identical
+configurations and validation examples. Each run selected its
+checkpoint and associated threshold by validation SQuAD-v2
+token F1. We report the mean and sample standard deviation
+across the three selected checkpoints, rather than only the
+best seed. These are validation-selected results, not independent
+test estimates. Training and validation took approximately
+22.3--23.4 minutes per run on an RTX 5060 Laptop GPU.
+
+\subsection{No-answer scoring and threshold selection}
+For each window, the null score is the sum of the start and end
+logits at the CLS position. Candidate answer scores sum the
+start/end logits of valid context spans. Our decoder retains the
+minimum null score and maximum valid span score across windows:
+\[
+d(x)=S_{\mathrm{null}}(x)-S_{\mathrm{span}}(x).
+\]
+It returns an empty answer when $d(x)>\tau$; otherwise, it returns
+the best span using the original context's character offsets.
+These scores are unbounded logit-based quantities, not
+probabilities.
+
+At each epoch, we searched thresholds on validation to maximise
+overall QA token F1, then saved the selected checkpoint together
+with its threshold. The saved searches for the selected models
+each contain 1,156 candidate thresholds.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{rrrrr}
+\toprule
+Seed & Epoch & $\tau$ & QA F1 & Ans.\ macro-F1 \\
+\midrule
+42 & 4 & $-0.9870$ & 66.39 & .8551 \\
+43 & 5 & $-8.2246$ & 67.59 & .8935 \\
+44 & 5 & $-4.5651$ & 65.11 & .8550 \\
+\bottomrule
+\end{tabular}
+\caption{Selected checkpoint and threshold for each run.
+QA F1 is reported on a 0--100 scale.}
+\label{tab:qa_selection}
+\end{table}
+
+For seed 42, answering therefore requires
+$S_{\mathrm{span}}-S_{\mathrm{null}}\geq0.9870$.
+Its validation null scores range from $-5.96$ to $1.99$,
+span scores from $-14.80$ to $17.25$, and differences from
+$-21.92$ to $16.41$. Score distributions differ across runs,
+so thresholds are selected separately; their numerical values
+alone do not establish which model rejects more questions.
+They are not averaged or transferred between checkpoints.
+
+\subsection{Results and interpretation}
+Tables~\ref{tab:qa_results} and~\ref{tab:qa_class_metrics}
+report extraction and answerability performance. QA EM and token F1 include no-answer examples;
+answerability is evaluated from empty versus non-empty outputs.
+Overall scores pool all validation examples rather than
+averaging the three language scores.
+
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrr}
+\toprule
+Group & $n$ & QA EM & QA F1 & Ans.\ macro-F1 \\
+\midrule
+Overall & 1155
+& $57.11\pm1.18$ & $66.36\pm1.24$ & $.8678\pm.0222$ \\
+ar & 415
+& $57.67\pm1.33$ & $67.02\pm1.62$ & $.9288\pm.0046$ \\
+ko & 356
+& $59.27\pm1.22$ & $70.03\pm1.38$ & $.8093\pm.0347$ \\
+te & 384
+& $54.51\pm2.67$ & $62.25\pm2.73$ & $.8294\pm.0364$ \\
+\bottomrule
+\end{tabular}
+\caption{Mean $\pm$ sample standard deviation across three seeds.
+QA scores use a 0--100 scale; answerability macro-F1 uses 0--1.}
+\label{tab:qa_results}
+\end{table*}
+
+% Table 2: Class-specific precision, recall and F1
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llrrr}
+\toprule
+Group & Class & Precision & Recall & F1 \\
+\midrule
+Overall & Answerable
+& $.9633\pm.0081$ & $.9613\pm.0041$ & $.9623\pm.0059$ \\
+        & Unanswerable
+& $.7686\pm.0287$ & $.7785\pm.0497$ & $.7734\pm.0386$ \\
+\midrule
+ar & Answerable
+& $.9943\pm.0000$ & $.9669\pm.0028$ & $.9804\pm.0014$ \\
+   & Unanswerable
+& $.8066\pm.0130$ & $.9615\pm.0000$ & $.8772\pm.0077$ \\
+\midrule
+ko & Answerable
+& $.9820\pm.0030$ & $.9743\pm.0062$ & $.9781\pm.0046$ \\
+   & Unanswerable
+& $.6025\pm.0739$ & $.6842\pm.0526$ & $.6405\pm.0648$ \\
+\midrule
+te & Answerable
+& $.9064\pm.0228$ & $.9393\pm.0052$ & $.9225\pm.0143$ \\
+   & Unanswerable
+& $.7839\pm.0328$ & $.6953\pm.0793$ & $.7363\pm.0586$ \\
+\bottomrule
+\end{tabular}
+\caption{Class-specific metrics: mean $\pm$ sample standard
+deviation across three seeds, on a 0--1 scale.
+Unanswerable supports are 164 overall: 52 ar, 19 ko and 93 te.
+Displayed zero standard deviations may reflect rounding.}
+\label{tab:qa_class_metrics}
+\end{table*}
+
+The always-empty baseline achieves 14.29 QA EM/F1, compared
+with 57.11 EM and 66.36 F1 for integrated QA.
+The baseline's QA score slightly exceeds the 14.20\%
+unanswerable proportion because one answerable gold string,
+``A'', becomes empty under SQuAD normalisation.
+Overall answerability accuracy is $.9354\pm.0103$,
+but the lower unanswerable F1 shows that accuracy alone
+understates the difficulty of abstention.
+
+Korean has the highest QA F1 but the lowest answerability
+macro-F1, demonstrating that extraction quality and balanced
+answerability classification capture different behaviour.
+Its unanswerable evaluation also has only 19 examples.
+Telugu has the lowest QA F1 and the greatest variation in
+QA F1 across seeds. The gap between overall token F1 and EM
+indicates partial textual matches, but does not identify
+their causes without inspecting examples.
+
+All runs peak before the final epoch: epochs 4, 5 and 5.
+Training loss continues falling while final-epoch QA F1
+declines, supporting best-checkpoint selection and suggesting
+mild overfitting rather than further validation gains.
+The six-epoch budget followed an exploratory three-epoch
+run; that exploratory run is excluded from the multi-seed
+summary.
+
+\subsection{Comparison with W39 and remaining work}
+On the same validation population, integrated QA's mean
+answerability macro-F1 of .8678 exceeds the previously
+reported logistic-regression score of .8134 and BiLSTM
+score of .8076. Unanswerable F1 also increases to .7734,
+versus .6773 and .6644, respectively.
+
+The improvement is concentrated in Telugu: integrated QA
+achieves mean macro-F1 .8294, versus .6878 and .6694.
+Conversely, Arabic (.9288) remains below both W39 models
+(.9574), as does Korean (.8093 versus .8456).
+Thus, the overall improvement does not imply uniform
+improvement across languages.
+
+This comparison is descriptive: W39 currently has single-run
+results and a fixed 0.5 classification threshold, whereas QA
+uses validation-tuned thresholds optimising QA token F1.
+The models also differ in pretraining and representations.
+These results therefore do not isolate an architectural
+effect or establish statistical significance.
+
+\textbf{Pending work.}
+Comparison with the W37 sequence labeller awaits its results.
+Manual inspection of at least ten validation errors across
+the three languages, followed by a task-motivated failure
+taxonomy with category counts and representative examples,
+also remains pending.
+
+
+\section*{AI Use Declaration}
+GPT was used to help draft descriptions of task progress and pending work, organise this interim report, and refine its wording. We reviewed and edited the resulting text to ensure that it accurately reflects our current progress and outstanding tasks.
+
+\end{document}

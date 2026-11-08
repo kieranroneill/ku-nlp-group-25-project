@@ -1,0 +1,363 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{graphicx}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+
+\title{Individual Report}
+
+\author{Kieran O'Neill \\\texttt{zcd890}\\}
+
+\begin{document}
+\maketitle
+
+\section{W36: Data inspection and initial baseline}
+
+\subsection{Baseline 2: deterministic lexical-overlap rule classifier}
+
+\subsubsection*{Implementation}
+
+\noindent
+The baseline uses direct lexical matching, drawing on the general principles of token-based and Boolean information retrieval \cite{manning2008ir}. Before comparison, both texts are normalised with Unicode NFC normalisation and case folding. It is then tokenised using a Unicode-aware regular expression that extracts word-character sequences while excluding punctuation. 
+
+\noindent 
+For each example, let $Q$ be the set of distinct question tokens and $C$ the set of distinct context tokens. The classifier computes the number of shared tokens,
+\[
+s = |Q \cap C|.
+\]
+It predicts answerable if $s \geq 1$, and unanswerable otherwise:
+\[
+    \hat{y} =
+        \begin{cases}
+            \text{answerable}, & \text{if } |Q \cap C| \geq 1, \\
+            \text{unanswerable}, & \text{otherwise.}
+        \end{cases}
+\]
+The threshold of one shared token is fixed before the labeled validation evaluation. Repeated tokens are counted only once because and punctuation-only tokens, including question marks, do not create an overlap.
+
+\subsubsection*{Results}
+
+\noindent
+The deterministic rule obtains an overall accuracy of 0.1524 and macro-F1 of 0.1408 (Table~\ref{table:week_36_baseline_results}). It has unanswerable recall of 0.9451 but answerable recall of only 0.0212. The same pattern occurs for all three languages, although Telugu has the highest macro-F1 (0.2265).
+
+\begin{table}[!h]
+    \centering
+    \small
+    \begin{tabular}{lrrrrrrrrr}
+        \toprule
+        & & & &
+        \multicolumn{3}{c}{Answerable}
+        & \multicolumn{3}{c}{Unanswerable} \\
+        \cmidrule(lr){5-7}\cmidrule(lr){8-10}
+        Group & $N$ & Accuracy & Macro-F1
+        & P & R & F1
+        & P & R & F1 \\
+        \midrule
+            Overall & 1155 & 0.1524 & 0.1408 & 0.7000 & 0.0212 & 0.0411 & 0.1378 & 0.9451 & 0.2405 \\
+            ar & 415 & 0.1398 & 0.1291 & 1.0000 & 0.0165 & 0.0325 & 0.1271 & 1.0 & 0.2256 \\
+            ko & 356 & 0.0562 & 0.0547 & 0.6000 & 0.0089 & 0.0175 & 0.0484 & 0.8947 & 0.0919 \\
+            te & 384 & 0.2552 & 0.2265 & 0.6316 & 0.0412 & 0.0774 & 0.2356 & 0.9247 & 0.3755 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Validation results for the deterministic lexical-overlap answerability rule. P, R, and F1 denote precision, recall, and F1, respectively. Macro-F1 is the unweighted mean of the answerable and unanswerable F1 scores.}
+    \label{table:week_36_baseline_results}
+\end{table}
+
+\subsubsection*{Analysis}
+
+\noindent
+As we can see, this rule has high recall for unanswerable examples primarily because it lacks lexical evidence for most question/context pairs. Questions are in Arabic, Korean, or Telugu while contexts are English, so direct word overlap is rarely captured in translation equivalent terms. Therefore, this rule incorrectly rejects most answerable examples. 
+
+\noindent
+It can only exploit surface forms shared across languages, such as Latin-script names and some numbers. It also produces false positives when an incidental shared surface token occurs although the context does not answer the question. This simple baseline clearly demonstrates why a cross-lingual answerability model needs a representation that can relate questions to English contexts.
+
+
+\section{W38: Pure Trigram Language Model}
+
+\subsubsection*{Implementation}
+
+\noindent
+The configuration is a pure trigram language model with add-$k$ smoothing, where $k=0.1$. Smoothing assigns nonzero probability to unobserved events; Chen and Goodman \cite{chen1996smoothing} provide an empirical comparison of language-model smoothing methods:
+\[
+P \left(
+        w_{i} \mid w_{i-2}, w_{i-1}
+    \right) = \frac{
+        C \left(
+            w_{i-2}, w_{i-1}, w_{i}
+        \right) + k
+    }{
+        C \left(
+            w_{i-2}, w_{i-1}
+        \right) + k \vert V \vert
+    }.
+\]
+The history count in the denominator counts occurrences of the two-token history with an outgoing prediction target.
+
+\noindent
+Rare training tokens and out-of-vocabulary validation tokens map to \texttt{<UNK>}. The prediction vocabulary contains 1,126 types, including \texttt{<UNK>} and \texttt{<EOS>} (\texttt{<BOS>} is intentionally left out). Each question receives two \texttt{<BOS>} history markers and one \texttt{<EOS>} target.  All question tokens and the final \texttt{<EOS>} are scored.
+
+\noindent
+The overall perplexity sums the negative log-probabilities across all targets rather than averaging question perplexities.
+
+\subsubsection*{Results}
+
+\begin{table}[!h]
+    \centering
+    \small
+    \begin{tabular}{lr}
+        \toprule
+        Model & Perplexity \\
+        \midrule    
+        Pure trigram with add-$k$ smoothing & 48.8377 \\
+        \bottomrule
+    \end{tabular}
+    \label{table:week_38_pure_trigram_perplexity}
+\end{table}
+
+\subsubsection*{Analysis}
+
+\noindent
+The lowest-perplexity question asks how many years the Etruscan dynasty ruled Rome (\textbf{203}; PPL 3.9099). All six tokens map to \texttt{<UNK>}. Questions \textbf{53} and \textbf{198} also become entirely unknown-token sequences and share PPL 4.0214. These low scores therefore describe predictable mapped patterns rather than prediction of the original words.
+
+\noindent
+The highest-perplexity question asks which present-day country corresponds to the Ming dynasty (index \textbf{347}; PPL 1206.2090), despite only one of four tokens being unknown. Known tokens, therefore, do not guarantee a predictable sequence. Indices \textbf{279} and \textbf{303} contain the same question and mapped tokens, giving identical PPL 1124.4276; they are not independent examples.
+
+\noindent
+It is then fair to say, that the pure trigram captures frequent local two-token history patterns, including repeated unknown-token patterns, but struggles with sparse contexts. Its overall corpus PPL of 48.8377 sits at a fairly modest scoring and the hypothesis is that sparse two-token histories contribute to the high perplexity of some questions; however, unseen-trigram coverage was not measured, so sparsity remains a possible explanation rather than a confirmed cause.
+
+\section{W39: Learned Answerability}
+
+\subsubsection*{Baseline 2 comparison}
+
+\subsubsection*{Scope}
+
+\noindent
+The logistic-regression (LR) and BiLSTM classifiers were compared against the deterministic lexical-overlap baseline and the selected validation errors were analysed.
+
+\subsubsection*{Results}
+
+\begin{table}[!h]
+    \centering
+    \small
+    \begin{tabular}{lrrrr}
+        \toprule
+        Model & Accuracy & Macro-F1 & Answerable F1 & Unanswerable F1 \\
+        \midrule
+        Majority baseline & 0.8580 & 0.4618 & 0.9236 & 0.0000 \\
+        Lexical-overlap rule & 0.1524 & 0.1408 & 0.0411 & 0.2405 \\
+        Logistic regression & 0.9126 & 0.8134 & 0.9494 & 0.6773 \\
+        BiLSTM & 0.9143 & 0.8076 & 0.9509 & 0.6644 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Overall validation comparison.}
+    \label{table:week_39_baseline_comparison}
+\end{table}
+
+\subsubsection*{Analysis}
+
+\noindent
+Both learned classifiers (LR and BiLSTM) substantially outperform the
+lexical-overlap rule under macro-F1. The rule predicts answerable for only 30 examples: 21 true positives and nine false positives. It produces 970 false negatives, so its high unanswerable recall comes at the cost of rejecting almost all answerable examples.
+
+\noindent
+In contrast, LR and the BiLSTM achieve unanswerable F1 scores of 0.6773 and 0.6644 while maintaining answerable F1 scores above 0.94. This demonstrates the limitations of requiring identical surface tokens across non-English questions and English contexts, but does not establish that the learned models perform reliable cross-lingual semantic reasoning. LR has slightly higher macro-F1 despite slightly lower accuracy, illustrating why accuracy alone is insufficient.
+
+\subsection*{Error analysis}
+
+\subsubsection*{Scope}
+
+\noindent
+The ten validation examples selected: three Arabic, three Korean and four Telugu. The exmples were compared with the full English context and gold annotation, then each example was assigned one primary descriptive category.
+
+\noindent
+We define a false positive (FP) as an unanswerable example predicted answerable and a false negative (FN) as an answerable example predicted unanswerable.
+
+\noindent
+Six examples were misclassified by both models, two by LR and two by the BiLSTM. The ten distinct examples therefore contain sixteen model-specific errors, eight per classifier.
+
+\subsubsection*{Results}
+
+\begin{table}[!h]
+    \centering
+    \small
+    \begin{tabular}{lrrr}
+        \toprule
+        Category & Cases & LR errors & BiLSTM errors \\
+        \midrule
+        Supported answer overlooked & 4 & 3 & 3 \\
+        Requested specificity not established & 3 & 3 & 3 \\
+        Ambiguous evidence or annotation & 3 & 2 & 2 \\
+        \midrule
+        Total & 10 & 8 & 8 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Primary categories within the selected sample. All errors are counted against the unchanged gold labels.}
+    \label{table:week_39_error_categories}
+\end{table}
+
+\subsubsection*{Analysis}
+
+Examples \textbf{48} and \textbf{221} (Telugu), \textbf{438} (Korean) and \textbf{752} (Arabic) contain support for the annotated answer but are rejected by at least one classifier.
+
+\paragraph{Examples 48 and 221} These examples ask what the temperature is at which water becomes steam. Their identical context explicitly contains ``boiling point (100~$^\circ$C)''. However, LR rejects both, whereas BiLSTM accepts \textbf{48} but rejects \textbf{221}. This demonstrates sensitivity to question wording with the context held fixed, although it does not identify the mechanism. Thus, each classifier's gold spans differ in extent, despite their shared answerability label.
+
+\paragraph{Example 438} 
+For this example, the context states that Indonesian law ``does not recognise same-sex marriage'', supporting the translated question about legality. LR predicts answerable, but the BiLSTM produces an FN. Negation and legal paraphrasing are observable features of this case, not established causes of the error.
+
+\paragraph{Example 752} 
+For this example, both classifiers reject a passage explicitly describing Paul as ``an apostle'', qualified by ``though not one of the Twelve Apostles''. The prepared translations differ between ``apostles'' and ``disciples'', so the interpretation warrants caution.
+
+Examples \textbf{337} (Korean), \textbf{831} (Arabic) and \textbf{1154} (Telugu)
+are FPs under both models.
+
+\paragraph{Example 337} 
+This example asks the question as to whether laws differ between U.S. states. The context defines state law as the law of each separate state, but does not explicitly establish differences between those laws. This is a borderline distinction between plausible inference and explicit contextual support.
+
+\paragraph{Example 831} 
+This example asks the question why St. John's wort has its name. This leads to a possible mismatch because the English name (i.e. ``St. John's wort``) bares little resemblance to the Latin name and is translation-dependent.
+
+\paragraph{Example 1154}
+This example shows the clearest specificity mismatch. The question asks Guntur town's population in the 2011 census, but the context gives the population of Guntur district, not the town.
+
+\noindent
+Examples \textbf{630} (Korean), \textbf{1003} (Arabic) and \textbf{1072} (Telugu) require caution when interpreting errors against gold labels.
+
+
+\paragraph{Example 630} 
+This example asks for the average lifetime of stars. The context discusses red dwarfs and compares their lifespans with the Sun's expected 10 billion a year lifespan. The gold span, ``10-billion'', is not an explicit average across stars and omits its unit. LR is an FN under the gold label, while the BiLSTM is correct.
+
+\paragraph{Example 1003} 
+Thie example asks whether Messi held Spanish citizenship before joining Argentina's national team. Its gold span, ``Spanish descent'', does not explicitly imply citizenship. Both classifiers are FNs under the answerable gold label, but the context does not appear to establish the requested fact.
+
+\paragraph{Example 1072} 
+This example asks for Yanam's area. The context contains a detached ``30 sq km''
+phrase and an incomplete area statement. LR follows the unanswerable gold label; the BiLSTM predicts answerable. The raw answer field is nonempty, but its start offset
+is $-1$, so it is not a valid extractable gold span. The numerical phrase and corrupted wording make the context difficult to interpret confidently.
+
+\section{W43: Calibrated Abstention Extension}
+
+\subsubsection*{Scope and hypothesis}
+
+\noindent
+Selective question answering considers when a system should answer or abstain \cite{kamath2020selective}. This extension tests whether language-specific thresholds improve answerability macro-F1 over a pooled threshold, given potentially different no-answer score distributions across languages. It also compares alternative abstention rules and tests whether temperature scaling improves calibration independently of decisions.
+
+\subsubsection*{Implementation}
+
+\noindent
+Saved integrated-model predictions cover 1,155 validation examples (415 Arabic, 356 Korean, 384 Telugu). With no-answer margin
+\[
+    s = s_{\mathrm{null}} - s_{\mathrm{best}},
+\]
+the system returns the best span when $s \leq t$ and abstains otherwise. EM and token F1 are recomputed against gold answers from saved best-span text, replacing the original thresholded outputs; correct abstentions score one, following the SQuAD~2.0 evaluation setting \cite{rajpurkar2018squad2}.
+
+\noindent
+Six rules are compared:
+\begin{description}
+    \item[A: Pooled threshold.] Maximises pooled validation answerability macro-F1.
+    \item[B: Language-specific thresholds.] Maximise macro-F1 separately per language.
+    \item[C: Temperature scaling.] Following the temperature-scaling approach of Guo et al.~\cite{guo2017calibration}, fits $T>0$ by validation binary negative log-likelihood:
+    \[
+        p_{T} = \frac{1}{1+\exp(s/T)}.
+    \]
+    A pooled probability threshold is then tuned.
+    \item[D: Recall-targeted thresholds.] Target approximately 90\% unanswerable recall per language.
+    \item[E: Feature combiner.] Logistic regression uses margin, log question/context lengths, lexical-overlap and span length; lengths count whitespace tokens. Five-fold out-of-fold probabilities support pooled threshold tuning.
+    \item[F: Fixed probability threshold.]
+    Applies a fixed 0.5 cutoff to $p_{T}$ without threshold tuning.
+\end{description}
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{lrrrrr}
+        \toprule
+        Rule & Macro-F1 & Answerable F1 & Unanswerable F1 & EM & Token F1 \\
+        \midrule
+        A: Pooled threshold       & 0.8576 & 0.9626 & 0.7525 & 0.5532 & 0.6465 \\
+        B: Language-specific      & 0.8673 & 0.9639 & 0.7707 & 0.5584 & 0.6518 \\
+        C: Temperature-scaled     & 0.8576 & 0.9626 & 0.7525 & 0.5532 & 0.6465 \\
+        D: Recall-targeted        & 0.7077 & 0.8649 & 0.5506 & 0.5186 & 0.5910 \\
+        E: Feature combiner       & 0.8622 & 0.9624 & 0.7619 & 0.5584 & 0.6508 \\
+        F: Fixed probability cut  & 0.8421 & 0.9621 & 0.7220 & 0.5420 & 0.6376 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Validation results ($N=1{,}155$); QA metrics include
+    unanswerable examples.}
+    \label{table:week_43_overall}
+\end{table}
+
+\subsubsection*{Analysis}
+
+\noindent
+Rule B achieves the highest overall macro-F1, chiefly through improved unanswerable F1, with gains in EM and token F1. Per-language macro-F1 (A$\rightarrow$B) is Arabic 0.9371$\rightarrow$0.9428 ($N=415$), Korean 0.8332$\rightarrow$0.8691 ($N=356$), and Telugu 0.7939$\rightarrow$0.8006 ($N=384$). Arabic and Telugu favour more conservative decisions; Korean gains by answering more despite lower unanswerable recall. The overall gain (0.0098) has a paired bootstrap interval of $[-0.0069,\,0.0269]$, leaving generalisation unestablished.
+
+\noindent
+Temperature scaling lowers expected calibration error from 0.0623 to 0.0319 without changing retuned decisions, since monotonic transformations preserve decision boundaries. Rule D reaches 0.8963 unanswerable recall, short of 90\%, but rejects supported questions, reducing macro-F1 to 0.7077. Rule E also trails B.
+
+\subsubsection*{Limitations}
+
+\noindent
+Shared tuning/evaluation data risk optimism, especially with only 19 Korean unanswerable examples. The bootstrap fixes fitted decisions, excluding threshold-selection uncertainty and reader-seed variation. Abstention cannot repair incorrect spans; calibration measures answerability, not answer correctness.
+
+\section{W43--44: Paired challenge set}
+
+\subsection{Deterministic rule baseline}
+
+\subsubsection*{Analysis}
+
+\noindent
+Baseline 2 (lexical-overlap classifier) was applied to the 30 challenge records (15 matched pairs), and the rule predicts answerable for only two records, both answerable members of their pair (TP~$=2$, FP~$=0$, FN~$=13$). Overall accuracy is 0.5667 and macro-F1 0.4665, and only 2 of 15 pairs are discriminated correctly. Both hits are incidental surface matches (the Latin acronyms \emph{TRIPS}, \emph{geographical} and \emph{indication} in a Telugu question; the numeral \emph{11} in an Arabic one). Precision and unanswerable recall are 1.0000 in every language, including the zero-shot Chinese pairs, so every failure is an abstention caused by the question language: non-Latin questions share no tokens with their English contexts, so the minimal alteration never matters.
+
+\section*{Contribution Statement}
+
+\begin{itemize}
+    \item \textbf{Week 36:}
+    I implemented and evaluated the deterministic lexical-overlap answerability baseline, including its text normalisation, tokenisation and fixed overlap threshold. I analysed its overall and per-language performance and its limitations in the cross-lingual setting.
+
+    \item \textbf{Week 38:}
+    I implemented and evaluated the pure trigram language-model configuration with add-$k$ smoothing on Korean questions. This included rare-token handling, boundary markers, pooled perplexity calculation and analysis of the unknown-token rate.
+
+    \item \textbf{Week 39:}
+    I compared the learned answerability classifiers with the deterministic baseline and analysed ten selected validation examples. I organised the errors into descriptive categories, counted model-specific errors and discussed ambiguous contextual evidence and annotations.
+
+    \item \textbf{Week 43:}
+    I implemented the calibrated-abstention extension. I adapted the saved validation predictions, ran the notebook experiments and analysed the threshold, calibration and paired-comparison results. The extension reuses the shared integrated QA model's predictions; training that reader is not claimed as part of this contribution.
+
+    \item \textbf{Paired challenge set:}
+    I added 10 questions (5 matched pairs) and analysed the group's questions against the deterministic rule-based classifier I implemented in week 36.
+\end{itemize}
+
+\section*{Declaration of the Use of Generative AI}
+
+\noindent
+The following tools were used, for the purposes stated. All interaction logs are provided as markdown files in the \texttt{genai-logs/zcd890} directory of the submitted ZIP.
+
+\begin{table}[!h]
+    \centering
+    \small
+    \begin{tabular}{p{2.6cm}p{4.3cm}p{2.2cm}p{4.6cm}}
+        \toprule
+        Tool & Purpose & Phase & Treatment of output \\
+        \midrule
+        Perplexity
+        & Suggestion of rule-based classifier, debugging of code, formulated the questions for the paired challenge set, summarised prose from my individual work reports to be included in the final report and summarised my contributions for my individual Contribution Statement.
+        & Weeks 36, 43 and 44; Contribution Statement 
+        & Debugged code was adapted into the source code and executed in the notebook. The challenge set questions formulated by the generative AI were used in my challenge set, but any translations were taken from Google Translate. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent
+No generative AI output was used as a substitute for the required experiments, and no results, metrics or citations were generated by a model. I ran every experiment reported, verified each reported number against the executed code, and take full responsibility for the content of this report.
+
+\bibliographystyle{plain}
+\bibliography{kieran_individual_report_bibliography}
+
+\end{document}

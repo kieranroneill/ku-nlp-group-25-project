@@ -1,0 +1,101 @@
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\renewcommand{\arraystretch}{1.2}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries Week 37 -- BIO Error Analysis}\\[4pt]
+{\normalsize Quick notes for Group 25}\\[3pt]
+{\small XLM-RoBERTa \textbar{} Arabic, Korean and Telugu \textbar{} Seed 123}
+\end{center}
+
+\section*{Quick summary}
+
+We looked at why our BIO model sometimes returns \emph{no answer} even when the answer appears in the context. We used our best-performing model (seed 123) and evaluated all \textbf{1,155 validation examples}. The questions are in Arabic, Korean, or Telugu, while the contexts are in English.
+
+\textbf{Main finding:} The model missed \textbf{282 answerable questions}. Of these, 188 had only \texttt{O} labels, while 94 had one or more \texttt{I-ANS} labels but no \texttt{B-ANS}. Our original decoder requires a \texttt{B-ANS} to start an answer, so both situations produced an empty prediction.
+
+\section*{1. Where the missing answers came from}
+
+\begin{center}
+\begin{tabular}{p{11cm}r}
+\hline
+\textbf{What happened} & \textbf{Cases} \\
+\hline
+Only \texttt{O} predicted (no answer tokens detected) & 188 \\
+Some \texttt{I-ANS}, but no \texttt{B-ANS} (invalid start) & 94 \\
+\hline
+\textbf{Total answerable examples predicted as empty} & \textbf{282} \\
+\hline
+\end{tabular}
+\end{center}
+
+The first category looks like a model-prediction problem: it did not mark any answer tokens. The second is more interesting: the model identified possible answer tokens, but never predicted the required start label. We found zero cases where the model predicted \texttt{B-ANS} but the decoder returned an empty answer. That is expected from how our decoder works.
+
+We also checked whether the \texttt{I-ANS} tokens were in the right place. In \textbf{51 of the 94 cases (54.3\%)}, at least one \texttt{I-ANS} token overlapped the gold answer. This does \emph{not} mean all 51 answers can be recovered correctly: sometimes the predicted tokens cover only part of an answer.
+
+\section*{2. Five examples we inspected}
+
+These five examples are from Telugu questions with English contexts. They illustrate the errors but are not a representative sample of all 94 cases.
+
+\begin{center}
+\small
+\begin{tabular}{p{3.8cm}p{7.2cm}p{1.8cm}}
+\hline
+\textbf{Gold answer} & \textbf{Predicted \texttt{I-ANS} text} & \textbf{Overlap?} \\
+\hline
+West Bengal & Metro & No \\
+3,312 languages & brew, comma, A, ramai, c, and, Greek & No \\
+670 & brew, comma, A, ramai, c, and, Greek & No \\
+North Atlantic Ocean & Atlantic, Ocean & Partial \\
+35 & 35, years, old & Partial \\
+\hline
+\end{tabular}
+\end{center}
+\normalsize
+
+For \emph{North Atlantic Ocean}, the model marked \emph{Atlantic Ocean} but missed the start label and the word \emph{North}. For \emph{35}, it marked the correct number along with extra words. Other predictions pointed to completely different parts of the context. So simply treating all \texttt{I-ANS} tokens as answers may help some cases but hurt others.
+
+\section*{3. We tried a small decoding change}
+
+We tested an \textbf{experimental fallback}: when no \texttt{B-ANS} is predicted, the decoder can use a consecutive run of \texttt{I-ANS} tokens as an answer candidate. We did \textbf{not} retrain the model or modify its weights.
+
+\begin{center}
+\begin{tabular}{p{8cm}rr}
+\hline
+\textbf{Metric (seed 123)} & \textbf{Original} & \textbf{Fallback} \\
+\hline
+Answer-token micro-F1 & 41.44\% & 44.44\% \\
+Exact character-span match & 39.31\% & 38.35\% \\
+Answerability macro-F1 & 60.04\% & 64.36\% \\
+Missed answerable examples & 282 & 188 \\
+Correctly rejected unanswerable examples & 109 & 95 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{The trade-off:} The fallback made nonempty predictions for all 94 previously missed answerable cases with \texttt{I-ANS} but no \texttt{B-ANS}. Answer-token micro-F1 increased by \textbf{3.00 percentage points}, and answerability macro-F1 increased by \textbf{4.32 points}. However, exact character-span match decreased by \textbf{0.96 points}, and \textbf{14} previously correct no-answer decisions became incorrect. Recovering partial answer tokens does not necessarily produce the exact right span.
+
+\section*{4. What we should take from this}
+
+\begin{itemize}
+
+\item \textbf{Missing answer tokens remain the bigger issue.} In 188 answerable examples, the model labelled every context token \texttt{O}. A decoder change alone cannot fix those cases.
+
+\item \textbf{Missing start labels also matter.} There were 94 cases with \texttt{I-ANS} but no \texttt{B-ANS}, and 51 of these had at least some overlap with the gold answer.
+
+\item \textbf{Partial answers are not exact answers.} This explains why token F1 improved even though exact span matching fell slightly.
+
+\item \textbf{Keep the original decoder for our main results.} The fallback was designed after looking at validation errors, so it is an exploratory result rather than an independently confirmed improvement.
+
+\end{itemize}
+
+\textbf{If we have time next:} inspect wrong but nonempty answer spans, compare errors across the three languages, and look at cases affected by the 384-token input limit. For now, these findings are enough for a useful Week 37 team discussion.
+
+\end{document}

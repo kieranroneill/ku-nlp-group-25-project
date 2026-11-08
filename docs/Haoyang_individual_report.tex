@@ -1,0 +1,318 @@
+\documentclass[11pt]{article}
+\usepackage[final]{acl}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{fontspec}
+\setmainfont[Path=fonts/,BoldFont=NimbusRoman-Bold.otf,ItalicFont=NimbusRoman-Italic.otf,BoldItalicFont=NimbusRoman-BoldItalic.otf]{NimbusRoman-Regular.otf}
+\newfontfamily\koreanfont[Path=fonts/]{NotoSansKR-Regular.ttf}
+\newfontfamily\telugufont[Path=fonts/,Script=Telugu]{NotoSansTelugu-Regular.ttf}
+\newfontfamily\arabicfont[Path=fonts/,Script=Arabic]{DejaVuSans.ttf}
+\usepackage{booktabs,amsmath,amssymb,microtype}
+\TeXXeTstate=1
+\newcommand{\KO}[1]{{\koreanfont\XeTeXlinebreaklocale "ko" #1}}
+\newcommand{\TE}[1]{{\telugufont #1}}
+\newcommand{\AR}[1]{{\arabicfont\beginR #1\endR}}
+\newcommand{\unk}{\texttt{<UNK>}}
+\newcommand{\bos}{\texttt{<BOS>}}
+\newcommand{\eos}{\texttt{<EOS>}}
+\title{Group 25: Multilingual Question Answering} 
+\author{Haoyang Sun \\ Individual contribution for group integration}
+\begin{document}
+\maketitle
+% Review draft for group integration; no abstract is required.
+\section{Research Question and Data}
+We investigate whether systems can answer multilingual questions from English contexts while abstaining when the context does not support an answer. We separate three sources of apparent success: predictable question forms, answerability classification, and extraction of the correct span. A Korean-to-English translation experiment tests whether changing the question language improves QA under controlled conditions.
+
+We use the Arabic (ar), Korean (ko), and Telugu (te) subset of \texttt{coastalcph/tydi\_xor\_rc} \citep{dataset}: 6,335 training and 1,155 validation examples. Contexts are English; questions retain their original language. Table~\ref{tab:data} shows substantial label shift: unanswerability rises from 5.73\% in training to 14.20\% in validation, particularly for Telugu. This motivates class-balanced metrics alongside accuracy.
+
+\begin{table}[ht]
+\centering\small\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llrrrr}
+\toprule
+Split & Lang. & $n$ & U\% & Q: m/IQR & C: m/IQR\\
+\midrule
+Train & ar & 2558 & 9.97 & 6/3 & 89/68\\
+& ko & 2422 & 2.60 & 5/2 & 84/63\\
+& te & 1355 & 3.32 & 6/2 & 80/59\\
+Valid. & ar & 415 & 12.53 & 6/3 & 87/63\\
+& ko & 356 & 5.34 & 5/2 & 84/71\\
+& te & 384 & 24.22 & 6/2 & 100/63\\
+\bottomrule
+\end{tabular}
+\caption{Subset statistics. U: unanswerable; Q/C: question/context lengths in whitespace tokens.}
+\label{tab:data}
+\end{table}
+
+No required field contains missing values or blank strings; only optional \texttt{answer\_inlang} is missing (7,340/7,490 records), and it is not used as input. Korean training contains ten duplicate pairs (20 participating rows); manual inspection confirmed agreement across all fields. We retain the ten extra rows (0.16\% of training) to preserve the supplied split. Other within-split/language duplicate counts are zero. All 6,963 answerable spans exactly match their context slices. Separately, adapting Lab 2 \citep{lab2}, character-offset tokenisation and BIO conversion recover the original start/text for five sampled answerable examples; five unanswerable examples produce all-O labels and an empty span. These ten successful round trips verify the sampled cases, not exhaustive boundary coverage.
+
+\paragraph{Tokenisation sensitivity.}
+Whitespace counts let isolated question marks occupy top-five positions. Replacing Unicode punctuation with spaces before counting merges punctuation variants without joining neighbouring words. The revised top five, with counts and contextual English glosses, are:
+\textbf{ar}: \AR{في} (in, 593), \AR{من} (from/who, 587), \AR{متى} (when, 536), \AR{ما} (what, 443), \AR{هو} (he/it, 350);
+\textbf{ko}: \KO{가장} (most, 527), \KO{무엇인가} (what is, 497), \KO{언제} (when, 336), \KO{몇} (how many, 234), \KO{어디인가} (where is, 228);
+\textbf{te}: \TE{ఎవరు} (who, 274), \TE{ఏది} (which one, 192), \TE{ఎన్ని} (how many, 165), \TE{ఎప్పుడు} (when, 154), \TE{ఏ} (which, 144).
+Telugu ``who'' rises from 186 to 274 and ``which one'' enters the ranking, supporting the punctuation-fragmentation explanation. This diagnostic does not change the whitespace protocol used for length statistics or language modelling.
+
+\section{Methods and Evaluation Protocol}
+\paragraph{Question language model.}
+Following the language-modelling framework discussed in Lab 3 \citep{lab3}, our Korean bigram model uses all 2,422 training questions, whitespace tokenisation, and add-$k$ smoothing with $k=0.1$. Tokens occurring fewer than twice in training, and unseen validation tokens, map to \unk{}. The 1,126-token prediction vocabulary includes \unk{} and \eos{}; \bos{} supplies history only. For history $h$ and next token $w$,
+\begin{equation}
+P(w\mid h)=\frac{C(h,w)+0.1}{C(h)+0.1|V|}.
+\end{equation}
+Perplexity pools negative log probabilities over all scored validation tokens, including one \eos{} per question; it is not the average of question-level perplexities. Model comparisons require identical tokenisation, vocabulary, unknown handling, and boundary scoring.
+
+\paragraph{Answerability models.}
+The majority baseline always predicts answerable, as determined from training. Using Lab 4 as classification reference material \citep{lab4}, logistic regression (LR) combines separate question/context TF-IDF blocks with four standardised numerical features: both token lengths, shared distinct-token count, and question-token overlap ratio. Lowercase whitespace tokenisation and minimum document frequency two yield 31,183 features. Vocabulary, IDF, and scaling are fitted on training only; answers and offsets are excluded. LR uses balanced class weights and $C=1$.
+
+The recurrent classifier shares a randomly initialised, trainable embedding between questions and contexts, encodes them with separate BiLSTMs, and concatenates their final forward/backward states before a nonlinear classifier. Concatenation provides a simple joint decision input; shared embeddings reuse parameters and identical token entries. Neither establishes cross-language alignment. There is no attention or explicit token-to-token interaction. Class-weighted cross-entropy is minimised, and the best of ten epochs is selected by validation macro-F1. Both classifiers use a 0.5 decision threshold in the runs reported here; BiLSTM results are from seed 42.
+
+\paragraph{Integrated QA and abstention.}
+Adapting the Lab 6 QA workflow \citep{lab6}, we fine-tune XLM-R-base \citep{xlmr} jointly on the three languages using question--context inputs and start/end prediction heads. Subword windows have maximum length 384 and context overlap 128. A window without the complete gold answer receives CLS/CLS labels, including windows from answerable examples. Decoding searches context-only spans of at most 30 subwords and slices the original context. Across windows, let $s_{\rm null}$ be the minimum CLS start-plus-end logit and $s_{\rm span}$ the maximum valid span score. We return an empty answer when
+\begin{equation}
+d=s_{\rm null}-s_{\rm span}>\tau.
+\end{equation}
+These are unbounded logit differences, not probabilities. At every epoch, one global threshold maximises overall validation QA token-F1; the best epoch and its threshold are saved together. Six-epoch runs use seeds 42, 43, and 44. Gold unanswerable answers are empty for SQuAD-v2-style scoring.
+
+We report normalised exact match (EM), token-overlap F1, and binary answerability metrics, overall and by language. QA scores use 0--100; classification scores use 0--1. Validation serves model/threshold selection, so these are development results, not independent test estimates. Neural QA summaries use mean $\pm$ sample standard deviation over three seeds.
+
+\section{Validation Results and Diagnostic Analysis}
+\subsection{Question Predictability Is Not Understanding}
+Bigram validation perplexity is 24.3639. Of 1,729 text tokens, 662 (38.29\%) map to \unk{}; scoring includes another 356 \eos{} tokens. Our hypothesis is that frequent local transitions lower perplexity, whereas unseen transitions raise it. Table~\ref{tab:lm} illustrates both effects using actual questions and GPT-assisted English translations.
+
+\begin{table}[t]
+\small\centering
+\begin{tabular}{p{0.74\columnwidth}r}
+\toprule
+Question / English translation & PPL\\
+\midrule
+\KO{육파철학의 이름들은 무엇인가?}\newline
+What are the names of the six schools of philosophy? & 3.81\\
+\KO{로마에 에트루리아인 왕조는 몇년간 로마를 지배했나요?}\newline
+For how many years did the Etruscan dynasty rule Rome? & 3.89\\
+\KO{성경은 언제 쓰여졌는가?}\newline
+When was the Bible written? & 380.83\\
+\bottomrule
+\end{tabular}
+\caption{Low/high-perplexity validation examples.}
+\label{tab:lm}
+\end{table}
+
+The first question becomes two \unk{} tokens followed by \KO{무엇인가?}; two semantically unrelated questions collapse to the same sequence and receive identical PPL 3.8087. The all-\unk{} Rome question has PPL 3.8906: its repeated \unk{} transition occurs 992 times and has probability 0.292. In contrast, the Bible question contains no unknown tokens, but its transition counts are only 3, 0, 1, and 2; the unseen transition has probability 0.000865. These cases support the local-frequency hypothesis and show why low perplexity can reflect information loss, rather than semantic competence. These selected cases do not constitute a statistical test.
+
+\subsection{Classification and Integrated QA}
+The majority baseline achieves 85.80\% accuracy but only 0.4618 macro-F1 and zero unanswerable recall/F1. LR reaches 0.8134 macro-F1, slightly exceeding BiLSTM's 0.8076 despite lower accuracy (91.26\% versus 91.43\%). Unanswerable precision/recall/F1 are .7114/.6463/.6773 for LR and .7481/.5976/.6644 for BiLSTM; answerable values are .9423/.9566/.9494 and .9355/.9667/.9509. Thus BiLSTM's accuracy gain accompanies poorer minority-class recall. Its best epoch is 3; training loss subsequently falls while validation loss generally rises, consistent with overfitting.
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lrrrr}
+\toprule
+& Overall & ar & ko & te\\
+\midrule
+Majority mF1 & .462 & .467 & .486 & .431\\
+LR mF1 & .813 & .957 & .846 & .688\\
+BiLSTM mF1 & .808 & .957 & .846 & .669\\
+QA mF1 & .868 & .929 & .809 & .829\\
+QA EM & 57.11 & 57.67 & 59.27 & 54.51\\
+QA token-F1 & 66.36 & 67.02 & 70.03 & 62.25\\
+\bottomrule
+\end{tabular}
+\caption{Validation comparison. QA rows average seeds 42/43/44; classifier rows use the reported fixed configuration (BiLSTM seed 42). mF1: answerability macro-F1.}
+\label{tab:results}
+\end{table}
+
+Both classifiers make eight Arabic errors, on the same examples. Telugu contributes 83/101 LR errors and 81/99 BiLSTM errors. Its larger validation unanswerable share and longer contexts are plausible difficulties, not demonstrated causes. LR's strongest negative question feature is Arabic \AR{هل}, a yes/no particle (coefficient $-13.73$); all ten strongest positive features are question tokens. These associations suggest question-form shortcuts, but coefficients alone do not establish causality or show that context is unnecessary.
+
+Integrated QA reaches EM $57.11\pm1.18$, token-F1 $66.36\pm1.24$, and answerability macro-F1 $.8678\pm.0222$. Its mean macro-F1 exceeds LR by .0544, particularly improving Telugu, while Arabic/Korean classifier scores remain higher (Table~\ref{tab:results}). This comparison also changes pretraining, supervision, and threshold selection, so the gain cannot be attributed to architecture alone. Korean has the highest QA F1 but the lowest QA answerability macro-F1: aggregate span scoring and balanced classification measure different behaviour. Only 19 Korean examples are unanswerable. Mean unanswerable precision is .6025, below LR's .8000, despite higher recall (.6842 versus .6316). Thus the metrics expose a rejection trade-off; class imbalance alone is not an explanation for low macro-F1.
+
+Across QA seeds, unanswerable precision/recall/F1 average .7686/.7785/.7734, versus .9633/.9613/.9623 for answerable examples. Unanswerable F1 has higher seed variability (SD .0386 versus .0059), reinforcing the need for class-specific evaluation.
+
+\paragraph{What explains the EM--F1 gap?}
+For the frozen seed-42 model, EM is 57.3160 and F1 is 66.3898. Of 1,155 predictions, 662 are exact matches, 217 have partial token overlap, and 276 have zero overlap or incorrect abstention. No prediction has F1=100 with EM=0. The 217 partial matches (18.79\%) therefore explain the entire 9.0738-point gap; their mean F1 is 48.296. Five inspected cases span all languages and different F1 levels: two answers are too long, two too short, and one is semantically wrong despite lexical overlap. For example, predicting ``1 May 1944'' against ``1944'' gives F1=50; an RNA/DNA answer sharing only ``in'' receives 6.06. Token overlap is thus not necessarily partial semantic correctness. Five selected cases do not establish population frequencies for these causes.
+
+\section{Paired Challenge Evaluation}
+\label{sec:challenge}
+\paragraph{Motivation and setup.}
+We test whether changing a question's critical constraint changes answering behaviour. The validated group set contains 15 answerable/unanswerable pairs: four Arabic, four Korean, two Telugu and five Chinese. I designed the Chinese Pok\'emon pairs and evaluated frozen BiLSTM and QA checkpoints; other members evaluate other models. BiLSTM reuses its seed-42 epoch-3 parameters, vocabulary and threshold 0.5. QA uses seed 44's best checkpoint (epoch 5 of six), with $\tau=-4.565059$. Nothing is retrained or tuned on challenge labels.
+
+Chinese questions test \emph{zero-shot transfer relative to supervised fine-tuning}, not absence of Chinese in XLM-R pretraining. They also stress BiLSTM's frozen vocabulary and whitespace tokenisation. Language, topic and author are confounded, preventing controlled language comparisons.
+
+\paragraph{Paired results.}
+Pair answerability requires both members' binary decisions to be correct; pair EM additionally requires exact extraction. BiLSTM answers all 30 records. QA answers both members of 13 pairs and rejects both members of two pairs. Both score 0/15 on pair answerability; QA also scores 0/15 on pair EM. No pair elicits the correct answer/abstain switch (Table~\ref{tab:challenge}). Equal decisions do not imply equal probabilities.
+
+\begin{table}[ht]
+\centering\small\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrr}
+\toprule
+Metric & BiLSTM & QA\\
+\midrule
+Answerability accuracy (\%) & 50.00 & 50.00\\
+Answerability macro-F1 & .3333 & .4223\\
+Unanswerable recall & .0000 & .1333\\
+Answerability-correct pairs & 0/15 & 0/15\\
+QA EM / token-F1 & --- & 40.00 / 40.51\\
+\midrule
+QA EM / F1: ar (8 records) & --- & 25.00 / 26.92\\
+QA EM / F1: ko (8 records) & --- & 50.00 / 50.00\\
+QA EM / F1: te (4 records) & --- & 50.00 / 50.00\\
+QA EM / F1: zh (10 records) & --- & 40.00 / 40.00\\
+\bottomrule
+\end{tabular}
+\caption{Frozen-model challenge results. Each language has 50\% binary accuracy for both models. QA scores include correct abstentions.}
+\label{tab:challenge}
+\end{table}
+
+\paragraph{Observations and interpretation.}
+QA yields 10 exact extractions, two correct abstentions, 13 unsupported answers, two false abstentions, two zero-overlap extractions and one partial match. Unsupported answering dominates its failures.
+
+Both Chinese \texttt{country} and \texttt{study} pairs receive empty answers: their differences ($-4.2350$ to $-0.6065$) exceed the negative threshold. Each contains one correct and one incorrect abstention. Paraphrase and proper-name alignment are possible difficulties, not established explanations.
+
+Both \texttt{year} predictions are 1996, the release year, whereas the answerable export question requires 1998. This suggests event--date confusion, not a demonstrated ``first year'' heuristic. The \texttt{species} pair returns 1025 correctly for 2026 but 151 for an unsupported 2020 question. An initial count and a 2026 count cannot establish the 2020 count: temporal evidence is insufficient, so rejection is required.
+
+The sole partial match asks when the University of Basrah was founded. Instead of ``1964'', the prediction begins with the city's founding in 636 and extends through 1964 (F1 15.38): an overlong span crossing events. Partial matches occur in 1/30 records versus 217/1,155 for the same seed-44 model on validation. Small sample size, short answers and balanced labels preclude interpreting this as improved boundary control. These results demonstrate failures on the designed contrasts, not population performance.
+
+\section{Translation Extension and Limitations}
+\paragraph{Hypothesis and controlled comparison.}
+Translating Korean questions into English should improve QA token-F1. To isolate question-language transformation, we retrain the same XLM-R-base QA architecture on Korean-only data in both conditions (2,422 training, 356 validation examples). GPT translates questions in both splits; contexts, gold spans, labels, and record order remain unchanged, with no manual editing or selection. The two conditions therefore evaluate the same underlying examples and answers. They share settings, seeds 42/43/44, and the validation threshold-selection rule, not necessarily the numerical threshold. The three-language model is not the controlled baseline because its training data differ.
+
+\begin{table}[t]
+\small\centering
+\begin{tabular}{lrr}
+\toprule
+Metric & Korean & Translated\\
+\midrule
+QA EM & $54.12\pm0.16$ & $57.87\pm1.49$\\
+QA token-F1 & $63.99\pm0.41$ & $67.28\pm1.56$\\
+Answerability mF1 & $.7689\pm.0310$ & $.7896\pm.0584$\\
+Unanswerable F1 & $.5636\pm.0553$ & $.6031\pm.1076$\\
+\bottomrule
+\end{tabular}
+\caption{Controlled translation experiment: mean $\pm$ sample SD over three matched seeds.}
+\label{tab:extension}
+\end{table}
+
+Translation improves mean token-F1 by 3.29 points and EM by 3.75 points (Table~\ref{tab:extension}); token-F1 improves for every matched seed, by 3.19, 4.90, and 1.77 points. This supports the hypothesis within this setup, without establishing statistical significance or transfer to other languages. Answerability macro-F1 decreases for seeds 42 and 43 and increases for 44; its higher mean is not a consistent abstention improvement. Translation may reduce the question--context language mismatch, but can also alter phrasing or meaning; the experiment does not isolate these mechanisms.
+
+\paragraph{Limits and conclusion.}
+The QA preprocessing covers every answerable training example in at least one window, but 49 examples have covered answers exceeding the 30-subword decoding cap. Validation reuse, small minority classes, and three seeds limit generalisation claims. The random-embedding BiLSTM has no explicit cross-language alignment, and the LM loses substantial lexical information through \unk{}. Integrated QA improves aggregate answerability; translation consistently improves answer-text scores, but not abstention. These outcomes require separate evaluation.
+
+\clearpage
+\begin{thebibliography}{9}
+\bibitem[CoAStaL NLP Group(2026)]{dataset}
+CoAStaL NLP Group. 2026. \textit{tydi\_xor\_rc}. Hugging Face dataset. \url{https://huggingface.co/datasets/coastalcph/tydi_xor_rc}.
+\bibitem[Conneau et~al.(2020)]{xlmr}
+Alexis Conneau, Kartikay Khandelwal, Naman Goyal, Vishrav Chaudhary, Guillaume Wenzek, Francisco Guzm\'an, Edouard Grave, Myle Ott, Luke Zettlemoyer, and Veselin Stoyanov. 2020. Unsupervised cross-lingual representation learning at scale. In \textit{Proceedings of ACL}, pages 8440--8451. \url{https://aclanthology.org/2020.acl-main.747/}.
+\bibitem[NLP Course Teaching Team(2026a)]{lab2}
+NLP Course Teaching Team. 2026a. \textit{Lab 2}. University of Copenhagen, Natural Language Processing course materials. \url{https://github.com/coastalcph/nlp-course}.
+\bibitem[NLP Course Teaching Team(2026b)]{lab3}
+NLP Course Teaching Team. 2026b. \textit{Lab 3}. University of Copenhagen, Natural Language Processing course materials. \url{https://github.com/coastalcph/nlp-course}.
+\bibitem[NLP Course Teaching Team(2026c)]{lab4}
+NLP Course Teaching Team. 2026c. \textit{Lab 4}. University of Copenhagen, Natural Language Processing course materials. \url{https://github.com/coastalcph/nlp-course}.
+\bibitem[NLP Course Teaching Team(2026d)]{lab6}
+NLP Course Teaching Team. 2026d. \textit{Lab 6}. University of Copenhagen, Natural Language Processing course materials. \url{https://github.com/coastalcph/nlp-course}.
+\end{thebibliography}
+
+\clearpage
+\appendix
+\section{Reproducibility}
+\subsection{Data and Implementation Provenance}
+All experiments use the complete applicable training and validation subsets: 6,335/1,155 examples for pooled classification and multilingual QA, and 2,422/356 Korean examples for the language model and each extension condition. No examples, including duplicates, were deleted or sampled down. The QA preprocessing creates 6,562 training and 1,194 validation windows for the multilingual run. Windowing increases the number of model inputs, not the number of source examples. Question truncation and the decoding cap are distinct from deleting examples.
+
+The seven original columns are \texttt{question}, \texttt{context}, \texttt{lang}, \texttt{answerable}, \texttt{answer\_start}, \texttt{answer}, and \texttt{answer\_inlang}. For QA scoring, unanswerable gold answers are represented by empty answer lists. Original context text and character offsets are preserved. Training-fitted transformations are reused unchanged at evaluation.
+
+Lab 2 informed character-offset tokenisation and BIO round-trip conversion \citep{lab2}; Lab 3 informed language-model construction and perplexity evaluation \citep{lab3}; Lab 4 provided classification reference material \citep{lab4}. The two-encoder BiLSTM is a project-specific implementation with GPT assistance, rather than a claim of verbatim Lab 4 reuse. Lab 6 provided the Transformer QA workflow, offset mapping, training and answer-scoring reference \citep{lab6}. Project adaptations include empty-answer supervision and scoring, global null-threshold selection, multi-window decoding, multilingual summaries, checkpoint persistence, and the controlled translation experiment.
+
+\subsection{Hyperparameters and Selection}
+\paragraph{Language model.}
+Korean questions are split on whitespace without lowercasing or punctuation removal. Vocabulary retention requires total training frequency at least two. Add-$k$ uses $k=0.1$. The prediction vocabulary has 1,126 entries including \unk{} and \eos{}; \bos{} is history only. This count-based estimator has no random initialisation. Corpus perplexity is the exponential of pooled mean negative log probability.
+
+\paragraph{Logistic regression.}
+Separate question/context TF-IDF vocabularies use lowercase whitespace tokens, unigram features and \texttt{min\_df=2}. Four numeric features are standardised with training statistics. The classifier uses $C=1$, L-BFGS, at most 1,000 iterations and balanced class weights. Prediction threshold is 0.5. Class weighting modifies the loss, not the dataset or unweighted metrics.
+
+\paragraph{BiLSTM.}
+The training question/context vocabulary retains tokens of frequency at least two and contains 33,771 entries including PAD=0 and UNK=1. A shared trainable embedding has dimension 64. Each independent, single-layer bidirectional LSTM has hidden size 64 per direction. Concatenating the two final bidirectional representations yields 256 features. The classifier is linear 256-to-64, ReLU, dropout 0.3, and linear 64-to-2. Packed padded sequences prevent padding from contributing to recurrent states. Training uses Adam, learning rate $10^{-3}$, batch size 32, ten epochs, gradient clipping at norm 1, and class-weighted cross-entropy. The weights for unanswerable/answerable are approximately 8.7259/0.5304. Seed 42 is used; epoch 3 maximises validation macro-F1 and is restored for evaluation. The saved threshold is 0.5. This report does not include subsequent threshold or multi-seed experiments assigned to another member.
+
+\paragraph{Integrated QA and translation conditions.}
+All use \texttt{FacebookAI/xlm-roberta-base} with the same QA architecture and settings in Table~\ref{tab:qa-settings}. The translation condition changes only Korean question text; it does not substitute an English-only encoder. Each condition trains independently with seeds 42, 43 and 44. The multilingual best epochs are 4, 5 and 5 respectively. The best validation token-F1 selects the checkpoint together with its own threshold. Threshold search scans score differences and retains the first maximiser; no threshold is reselected on the challenge set. Python, NumPy and PyTorch random generators are seeded; cuDNN deterministic mode is enabled and benchmarking disabled. These settings do not guarantee identical execution across different hardware/software environments.
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{lr}
+\toprule
+Setting & Value\\
+\midrule
+Maximum epochs & 6\\
+Train / evaluation batch size & 4 / 8\\
+Gradient accumulation & 2 steps\\
+Learning rate & $2\times10^{-5}$\\
+Weight decay & 0.01\\
+Warmup fraction & 0.10\\
+Maximum input / question length & 384 / 128\\
+Context window overlap & 128\\
+Top start/end candidates & 20 each\\
+Maximum answer length & 30 subwords\\
+Gradient clipping norm & 1.0\\
+Mixed precision / checkpointing & enabled\\
+\bottomrule
+\end{tabular}
+\caption{Shared QA hyperparameters. Lengths refer to model tokens; the effective full training batch contains eight windows.}
+\label{tab:qa-settings}
+\end{table}
+
+The optimiser is AdamW with separate decay/no-decay parameter groups and a linear learning-rate schedule with warmup. Questions longer than 128 subwords are truncated using tokenizer offsets before context windowing. Candidate start/end positions must belong to the context and form a valid span. Labels for null windows point to CLS. The minimum null score across windows and maximum valid nonempty score are compared as described in the main text. Empty predictions and gold answers score one when both are empty and zero when only one is empty. Nonempty answers use lowercasing, punctuation/article removal and whitespace normalisation before EM and token-multiset F1. These are textual rather than semantic metrics.
+
+\subsection{Infrastructure and Runtime}
+Experiments were run locally on Windows 11 with an Intel Core Ultra 9 285H CPU, 32 GB RAM, and an NVIDIA GeForce RTX 5060 Laptop GPU (approximately 8 GB VRAM). QA training used the GPU; other training used the CPU. Table~\ref{tab:environment} records the exported environment. The saved multilingual QA configurations also record the same principal package versions. A complete installed-package list accompanies the environment export; earlier unlogged package states cannot be reconstructed from that snapshot.
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{ll}
+\toprule
+Software & Version\\
+\midrule
+Python & 3.13.7\\
+PyTorch & 2.11.0+cu128\\
+PyTorch CUDA & 12.8\\
+Transformers & 5.20.1\\
+Tokenizers & 0.23.3\\
+Datasets & 5.0.1\\
+scikit-learn & 1.9.1\\
+NumPy & 2.5.3\\
+pandas & 3.0.5\\
+SciPy & 1.18.1\\
+\bottomrule
+\end{tabular}
+\caption{Recorded local software environment.}
+\label{tab:environment}
+\end{table}
+
+For multilingual QA, the saved seed-43 and seed-44 logs sum to 22.07 and 20.97 minutes of training, respectively, over six epochs. Summed epoch times including validation/selection are 23.27 and 22.20 minutes. These are recorded examples, not a mean over all seeds or extension conditions. Language-model, logistic-regression and BiLSTM training times were not recorded; no retrospective timing estimates are substituted. Extension timing is not quantified in this report. The initial small-sample trial recommended by the assignment was not performed; runs used the full applicable subsets.
+
+The model revision was specified as \texttt{main}; an immutable upstream model commit was not recorded. Saved local checkpoints, vocabularies, settings, translated data and prediction files are therefore important for reproducing these particular evaluations. Challenge evaluation uses frozen assets, record-ID joins, and pair IDs grouped with creator identity. The challenge contains 15 balanced pairs and is never used for selection.
+
+\section{Declaration of Generative AI Use}
+% Content follows the fields of the supplied UCPH declaration template.
+% Transfer these answers into the official form if a separately completed form is required.
+\noindent $\boxtimes$ I have used generative AI as an aid/tool.\\
+$\square$ I have NOT used generative AI as an aid/tool.
+
+\paragraph{Tools and platform.}
+ChatGPT (OpenAI), \url{https://chatgpt.com/}. Specific GPT model versions are not consistently documented; no single version is asserted for the entire project.
+
+\paragraph{1. Purpose.}
+I used GPT to discuss assignment requirements and technical concepts; propose implementation approaches; generate and revise portions of code; explain implementation details; and assist with debugging. It also supported supplementary-experiment design, statistical summaries, tables, translation, report organisation, drafting, English editing and LaTeX formatting. I used it to prepare group messages, progress summaries, feedback summaries and meeting action guides.
+
+\paragraph{2. Work phase.}
+Use extended from initial planning and learning through implementation, experimental analysis and report preparation. In the Korean language-model analysis, GPT assisted with English translations of selected questions. In the individual extension, GPT translated Korean questions in both training and validation; those translations were then used without manual editing or selection. GPT also assisted in discussing the supplementary analyses documented in my analysis record, including tokenisation sensitivity, transition-level language-model diagnostics, EM--F1 differences and the translation comparison. In challenge analysis it helped organise paired results and assess whether my proposed explanations were supported by the evidence.
+
+\paragraph{3. Use and further work on outputs.}
+I ran the experiments locally, studied the implementations, inspected examples, maintained the analysis record and proposed interpretations and hypotheses. GPT supplied code drafts and implementation suggestions, helped organise numerical evidence, and identified limitations in causal or semantic interpretations. I used this feedback to refine my reasoning and distinguish observations from hypotheses. The final interpretation is therefore informed by both my own investigation and these discussions; AI assistance was not limited to proofreading. GPT also generated report prose and LaTeX drafts from the supplied results and analysis. These drafts require my substantive review and revision before submission. No additional model run or manual analysis is claimed solely because an AI response suggested it. AI interaction logs are being prepared separately and are not represented here as already complete.
+
+\section{Contribution Statement}
+This individual draft records Haoyang Sun's contribution to Group 25; it is intended for integration with the other members' work, not as a standalone account of all mandatory group components.
+
+I was responsible for the W36 data statistics, token-frequency analysis, answer-span checks and majority baseline, including the supplementary punctuation analysis; the W37 character-span/BIO round-trip checks; and the W38 Korean bigram model with add-$k$ smoothing and its transition-level analysis. For W39, I implemented and evaluated logistic regression and BiLSTM and compared them with the majority baseline. Subsequent W39 threshold investigations, additional seeds and manual error analysis were assigned to Kieran and are not claimed here.
+
+For W40--41, I implemented and evaluated integrated multilingual QA, conducted three-seed runs, compared answerability with W39, and investigated EM--F1 differences and decoding constraints. I took primary responsibility for the W43 Korean-to-English translation extension, including its Korean-only control and three-seed comparison. For W44, I designed five Chinese pairs, contributed to assembling the validated group challenge set, and ran and analysed the frozen BiLSTM and multilingual QA models. Other members supplied the remaining pairs and evaluated other models. I did not implement the group's question-conditioned sequence labeller or W36 second baseline.
+
+I also coordinated progress discussions, consolidated feedback and meeting action guides with GPT assistance, and prepared my report contribution for later group integration. The AI declaration above describes assistance with implementation, analysis and writing. The final group contribution statement should combine this account with the other members' responsibilities.
+
+\end{document}

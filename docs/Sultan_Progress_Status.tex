@@ -1,0 +1,174 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\title{Week 37 -- Progress Update}
+\author{Group 25}
+\date{20 October 2026}
+
+\begin{document}
+\maketitle
+
+\section{Where I Started}
+
+I started by reviewing Alex Sun's Week 37 implementation. He had already written the basic functions for tokenizing a context, converting annotated answers into BIO labels, and recovering answer spans from those labels. I continued from his code rather than rewriting it. My first goal was to check whether the conversion worked with our actual project data.
+
+\section{Initial BIO Preprocessing}
+
+I initially worked on the Korean subset using our group's shared \texttt{load\_dataset()} function. This subset contained 2,422 training examples and 356 validation examples. The questions are in Korean, while the contexts and answer spans are in English.
+
+Alex's original conversion passed the first 68 examples I tested, but then failed when an annotated answer started or ended inside a token. I added \texttt{align\_tokens\_to\_answer()} to split tokens at known gold-answer boundaries while preserving their character offsets. I also made unanswerable examples use the dataset's \texttt{answerable} flag and receive only \texttt{O} labels.
+
+After these changes, the BIO-to-answer round-trip checks passed for all 2,422 Korean training examples and all 356 Korean validation examples. Four answerable validation examples needed adjusted token boundaries, while 333 were already aligned. I also added \texttt{validate\_bio\_sequence()} to reject illegal or interrupted BIO spans and multiple spans.
+
+These tests checked the \emph{gold-annotation conversion}, not the accuracy of any trained model. The exploratory preprocessing file still focuses on the Korean subset; the later model training and evaluation use all three languages.
+
+\section{Preparing Examples and Choosing a Model}
+
+I added \texttt{prepare\_example()}, \texttt{build\_vocabulary()}, \texttt{encode\_example()}, and \texttt{encode\_question()} to explore a numerical representation of context tokens, questions, and BIO labels. The custom vocabulary had 25,633 entries. However, it was built from English contexts, so Korean question tokens were mostly mapped to \texttt{<UNK>}. I therefore moved to a pretrained multilingual tokenizer.
+
+I chose \texttt{FacebookAI/xlm-roberta-base}, which can represent questions in Arabic, Korean, and Telugu together with English contexts. I used PyTorch and Hugging Face Transformers, with Apple's MPS backend for training.
+
+I briefly experimented with a separate XLM-RoBERTa start/end question-answering head, but our planned Week 37 method was BIO span labeling. I therefore kept \texttt{AutoModelForTokenClassification} as the main implementation, predicting \texttt{O}, \texttt{B-ANS}, and \texttt{I-ANS} for context tokens. The trained model uses the pretrained tokenizer without gold-answer-dependent token splitting; the gold answer is used only for supervision.
+
+\section{Correcting the Dataset Setup}
+
+After feedback from the group, I realized the initial Korean-only experiment did not meet our Shared Evaluation Protocol. Week 37 must use Arabic, Korean, and Telugu, with results reported for each language and overall. I updated the training and evaluation scripts to use the supplied splits for all three languages.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Language & Train & Validation & Val.\ answerable & Val.\ unanswerable \\
+\midrule
+Arabic & 2,558 & 415 & 363 & 52 \\
+Korean & 2,422 & 356 & 337 & 19 \\
+Telugu & 1,355 & 384 & 291 & 93 \\
+\midrule
+Overall & 6,335 & 1,155 & 991 & 164 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+I checked the answer annotations before retraining. There were no mismatches between annotated answer text and its character span in either split, and no exact language--question--context overlaps between the training and validation splits.
+
+\section{Multilingual BIO Training}
+
+I trained XLM-RoBERTa with three BIO labels: \texttt{O = 0}, \texttt{B-ANS = 1}, and \texttt{I-ANS = 2}. The model receives the multilingual question and English context together. Question tokens, padding, and special tokens are excluded from the classification loss using label \texttt{-100}. In an unanswerable training example, all context tokens receive \texttt{O}.
+
+I kept a maximum input length of 384 tokens and one window per example. Our truncation audit found 16 answerable training examples whose complete answers fell outside that window: 10 Arabic, 4 Korean, and 2 Telugu. We decided to exclude and explicitly document these examples rather than label them incorrectly as unanswerable. This leaves 6,319 training examples and is a documented departure from using every row of the supplied training split.
+
+The training settings were:
+\begin{itemize}[noitemsep]
+    \item Model: \texttt{FacebookAI/xlm-roberta-base} with a token-classification head.
+    \item Examples used: 6,319; batch size: 4; epochs: 2.
+    \item Optimizer: AdamW; learning rate: $2 \times 10^{-5}$.
+    \item Maximum sequence length: 384; random seed: 42; device: Apple MPS.
+\end{itemize}
+
+Training completed successfully. The average loss was \textbf{0.1365} in epoch 1 and \textbf{0.0990} in epoch 2. The multilingual BIO model and tokenizer were saved locally in \texttt{models/w37\_xlmr\_bio\_multilingual}. The lower loss is not itself proof that the predicted answer spans are accurate.
+
+\section{Shared Evaluation Protocol}
+
+I replaced the earlier Korean-only text-overlap evaluation with metrics appropriate for the shared protocol. The evaluation covers \emph{all 1,155 validation examples}, including two Arabic examples whose gold answers are beyond the 384-token input window. No validation examples are discarded.
+
+The BIO decoder finds a \texttt{B-ANS} token and extends it through consecutive \texttt{I-ANS} tokens. If there are several candidate spans, it takes the one with the highest \texttt{B-ANS} probability. If there is no \texttt{B-ANS}, it predicts no answer. The decoder does not use the gold answer.
+
+For answer-token precision, recall, and F1, I apply the same regex tokenizer to the full context on both the prediction and gold sides. Tokens overlapping an answer span are positive; other tokens are negative. The pooled, or micro-averaged, F1 combines token counts across examples. I also report mean per-example token F1 separately. An empty gold answer with an empty prediction has per-example F1 of 1, while both contribute zero positive tokens to the pooled counts.
+
+Exact span match compares the predicted and annotated \emph{character offsets}, including an exact empty--empty match for correctly rejected unanswerable questions. Answerability macro-F1 treats answerable and unanswerable as two equally weighted classes. The evaluator also reports precision, recall, and F1 for the unanswerable class, as well as the number of incorrect no-answer predictions.
+
+
+\section{Baseline and Multilingual Results}
+
+We evaluated the multilingual XLM-RoBERTa BIO model on
+all 1,155 validation examples across Arabic, Korean,
+and Telugu. The all-O baseline achieved 14.20\% exact
+character-span match.
+
+We trained the BIO model with three random seeds
+(42, 7, and 123), using the same architecture and
+training configuration.
+
+\begin{center}
+\small
+\begin{tabular}{lrr}
+\hline
+Seed & Token micro-F1 & Span EM \\
+\hline
+42  & 30.75\% & 33.07\% \\
+7   & 33.67\% & 33.51\% \\
+123 & 41.44\% & 39.31\% \\
+\hline
+Mean $\pm$ SD
+& $35.29 \pm 5.53$\%
+& $35.30 \pm 3.48$\% \\
+\hline
+\end{tabular}
+\end{center}
+
+Seed 123 achieved the highest validation scores among
+the three runs. Its per-language results were:
+
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\hline
+Language & Examples & Token F1 & Span EM \\
+\hline
+Arabic & 415 & 43.71\% & 43.13\% \\
+Korean & 356 & 42.32\% & 39.61\% \\
+Telugu & 384 & 37.13\% & 34.90\% \\
+\hline
+Overall & 1,155 & 41.44\% & 39.31\% \\
+\hline
+\end{tabular}
+\end{center}
+
+For seed 123, answerability macro-F1 was 60.04\%.
+Supplementary SQuAD-v2-style normalized QA exact
+match and token F1 were 42.60\% and 48.56\%,
+respectively.
+
+The original BIO decoder was retained for the main
+evaluation. Seed 123 was used for detailed diagnostic
+analysis, while all three seeds are reported to avoid
+presenting only the best-performing run.
+
+
+\section{No-Answer Errors}
+
+The model predicted an empty answer for \textbf{492} of the 1,155 validation examples, while only \textbf{164} examples were genuinely unanswerable. Of those 492 empty predictions, 121 were correct and \textbf{371 were missed answerable questions}. It also incorrectly predicted a nonempty answer for 43 genuinely unanswerable examples.
+
+By language, the model missed 133 answerable Arabic examples, 125 Korean examples, and 113 Telugu examples by predicting no answer. This is the main error pattern I want to investigate. The class imbalance between \texttt{O} and answer tokens or the BIO decoding rule could be contributing factors, but we have not isolated the cause yet. The two truncated Arabic validation answers are too few to explain this pattern.
+
+\section{Earlier Korean-Only Experiments}
+
+Before the multilingual correction, the Korean-only BIO model was trained on 2,418 examples and reached 33.99\% normalized answer-text EM and 38.87\% answer-text F1 on 356 validation rows. That run also produced 169 empty predictions. These are \emph{old metrics under a different evaluation setup}; they should not be confused with the multilingual shared-protocol results above.
+
+I also tried an earlier start/end question-answering model, which reached 49.72\% normalized EM and 59.78\% answer-text F1 on the Korean subset. Its head, truncation handling, and scoring protocol differed from the current BIO experiment, so these results are exploratory and not a controlled comparison or our main Week 37 score.
+
+\section{Limitations and Next Steps}
+
+We now have a working multilingual BIO model, a shared-protocol evaluator, and a simple baseline. The main remaining points are:
+\begin{itemize}[noitemsep]
+    \item Document the 16 excluded training examples and the two Arabic validation answers that were truncated but still evaluated.
+    \item Examine why the model predicts no answer for 371 answerable validation examples, and check whether these are classification or decoding errors.
+    \item Agree with the group on the official answer-token evaluation tokenization and F1 aggregation before freezing the model and reporting final scores.
+    \item Repeat training with more than one random seed if feasible, or explain why this was not possible. So far, the multilingual result uses seed 42 only.
+    \item Freeze model settings and any no-answer decision threshold before evaluation on the challenge set. No challenge-set results are reported here.
+\end{itemize}
+
+\section{Summary}
+
+I started with Alex Sun's BIO preprocessing code, fixed answer-boundary alignment, and tested the conversion on our initial Korean subset. I then implemented an XLM-RoBERTa BIO token classifier and, after receiving feedback, corrected the experiment to use Arabic, Korean, and Telugu together.
+
+The multilingual model was trained on 6,319 examples and evaluated on all 1,155 validation examples. It achieved \textbf{33.07\% exact character-span match}, \textbf{30.75\% answer-token micro-F1}, and \textbf{55.93\% answerability macro-F1}, compared with \textbf{14.20\% exact span match} for the all-\texttt{O} baseline. These are our current Week 37 results, not yet frozen final results. The next priorities are error analysis, metric agreement, and documenting the remaining reproducibility limitations.
+
+\end{document}
